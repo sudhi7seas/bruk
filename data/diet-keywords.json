@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "description": "Brük diet detection keyword lists — German (de) and English (en)",
+  "nonVeg": {
+    "de": [
+      "fleisch", "rindfleisch", "schweinefleisch", "hühnerfleisch", "hackfleisch",
+      "speck", "schinken", "wurst", "salami", "pepperoni", "chorizo",
+      "fisch", "lachs", "thunfisch", "garnelen", "gelatine", "schmalz",
+      "hühnerbrühe", "fleischbrühe", "anchovis", "makrele", "sardine",
+      "hering", "forelle", "krabben", "muscheln", "tintenfisch", "oktopus",
+      "ente", "gans", "kaninchen", "lamm", "lammfleisch", "kalbfleisch",
+      "wildfleisch", "wildschweinfleisch", "truthahn", "pute", "weißfisch",
+      "kabeljau", "seelachs", "tilapia", "garnele", "miesmuschel",
+      "austern", "jakobsmuscheln", "hummer", "langusten"
+    ],
+    "en": [
+      "meat", "beef", "pork", "chicken", "minced meat", "ham", "bacon",
+      "sausage", "salami", "pepperoni", "chorizo", "fish", "salmon", "tuna",
+      "shrimp", "gelatin", "gelatine", "lard", "chicken broth", "meat broth",
+      "anchovies", "mackerel", "sardine", "herring", "trout", "crab",
+      "mussels", "squid", "octopus", "duck", "goose", "rabbit", "lamb",
+      "veal", "venison", "wild boar", "turkey", "cod", "pollock",
+      "tilapia", "prawns", "clams", "oysters", "scallops", "lobster",
+      "langoustine", "anchovy", "suet"
+    ]
+  },
+  "nonVegan": {
+    "de": [
+      "milch", "vollmilch", "magermilch", "fettarme milch", "butter", "sahne",
+      "käse", "ei", "eier", "eigelb", "eiweiß", "honig", "molke", "laktose",
+      "joghurt", "quark", "rahm", "schlagsahne", "butterschmalz", "kasein",
+      "albumin", "ghee", "crème fraîche", "sauerrahm", "dickmilch",
+      "buttermilch", "kondensmilch", "trockenmilch", "milchpulver",
+      "frischkäse", "ricotta", "mascarpone", "mozzarella", "parmesan",
+      "emmentaler", "gouda", "edamer", "bienenwachs", "carmin", "karmin",
+      "lezithin aus ei", "eierlezithin", "milcheiweiß", "milchzucker",
+      "milchfett", "rahmbutter", "molkepulver", "magermilchpulver"
+    ],
+    "en": [
+      "milk", "whole milk", "skimmed milk", "semi-skimmed milk", "butter",
+      "cream", "cheese", "egg", "eggs", "egg yolk", "egg white", "honey",
+      "whey", "lactose", "yogurt", "yoghurt", "quark", "casein", "albumin",
+      "ghee", "creme fraiche", "soured cream", "condensed milk",
+      "dried milk", "milk powder", "cream cheese", "ricotta", "mascarpone",
+      "mozzarella", "parmesan", "emmental", "gouda", "edam", "beeswax",
+      "carmine", "cochineal", "e120", "e901", "egg lecithin",
+      "milk protein", "milk fat", "whey powder", "skim milk powder",
+      "buttermilk", "double cream", "single cream", "clotted cream",
+      "fromage frais", "fromage blanc", "lactalbumin", "lactoglobulin"
+    ]
+  }
+}
