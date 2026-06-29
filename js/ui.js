@@ -93,6 +93,10 @@ export const EL = {
 
   // Toast
   toastContainer: $('toast-container'),
+
+  // Model loading hint (shown inline during first-use download)
+  modelLoadingHint: $('model-loading-hint'),
+  modelLoadingText: $('model-loading-text'),
 };
 
 // ── LOADING ────────────────────────────────────────────────────────
@@ -274,4 +278,15 @@ export function addConvoBubble(side, original, translation, onSpeak) {
 
 export function clearConvoLog() {
   EL.convoLog.innerHTML = '<div class="convo-empty"><p>Tap a mic button to begin the conversation.</p></div>';
+}
+
+// ── MODEL LOADING HINT ────────────────────────────────────────────
+export function showModelLoadingHint(text) {
+  if (!EL.modelLoadingHint) return;
+  if (text) EL.modelLoadingText.textContent = text;
+  EL.modelLoadingHint.classList.remove('hidden');
+}
+
+export function hideModelLoadingHint() {
+  EL.modelLoadingHint?.classList.add('hidden');
 }

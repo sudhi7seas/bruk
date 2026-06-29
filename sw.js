@@ -1,21 +1,23 @@
 /**
- * Brük — Service Worker
- * Offline-first caching strategy.
- * App shell: cache-first. AI models: cache-first (large, rarely change).
- * External scripts: network-first with cache fallback.
+ * Brük — Service Worker v1.1
+ *
+ * Cache strategy:
+ *   App shell   → cache-first  (APP_CACHE)
+ *   AI models   → cache-first  (MODEL_CACHE) — large, never changes once cached
+ *   CDN scripts → network-first with cache fallback (APP_CACHE)
  */
 
-const APP_CACHE = 'bruk-app-v1.0.0';
+const APP_CACHE   = 'bruk-app-v1.1.0';
 const MODEL_CACHE = 'bruk-models-v1';
 
-// App shell files to precache
-const PRECACHE_URLS = [
+const PRECACHE = [
   './',
   './index.html',
   './manifest.json',
   './css/style.css',
   './js/main.js',
   './js/config.js',
+  './js/loader.js',
   './js/ui.js',
   './js/translation.js',
   './js/speech-input.js',
@@ -28,14 +30,14 @@ const PRECACHE_URLS = [
   './icons/icon-512.png',
 ];
 
-// Hosts that serve AI model weights — cache aggressively
+// Hosts that serve multi-hundred-MB model weight files
 const MODEL_HOSTS = [
   'huggingface.co',
   'cdn-lfs.huggingface.co',
   'cdn-lfs-us-1.huggingface.co',
 ];
 
-// CDN scripts — network-first
+// CDN JS libraries (Transformers.js, Tesseract, es-module-shims)
 const CDN_HOSTS = [
   'cdn.jsdelivr.net',
   'unpkg.com',
@@ -44,106 +46,87 @@ const CDN_HOSTS = [
 ];
 
 // ── INSTALL ───────────────────────────────────────────────────────
-self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(APP_CACHE).then(cache => {
-      return cache.addAll(PRECACHE_URLS).catch(err => {
-        console.warn('[SW] Precache partial failure:', err);
-      });
-    }).then(() => self.skipWaiting())
+self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open(APP_CACHE)
+      .then(c => c.addAll(PRECACHE).catch(err => console.warn('[SW] Precache miss:', err)))
+      .then(() => self.skipWaiting())
   );
 });
 
 // ── ACTIVATE ──────────────────────────────────────────────────────
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys
-          .filter(k => k !== APP_CACHE && k !== MODEL_CACHE)
-          .map(k => caches.delete(k))
-      )
-    ).then(() => self.clients.claim())
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(
+        keys.filter(k => k !== APP_CACHE && k !== MODEL_CACHE).map(k => caches.delete(k))
+      ))
+      .then(() => self.clients.claim())
   );
 });
 
 // ── FETCH ─────────────────────────────────────────────────────────
-self.addEventListener('fetch', event => {
-  const url = new URL(event.request.url);
+self.addEventListener('fetch', e => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
 
-  // Skip non-GET requests and browser-extension requests
-  if (event.request.method !== 'GET') return;
+  let url;
+  try { url = new URL(req.url); } catch { return; }
+
   if (!url.protocol.startsWith('http')) return;
 
-  // AI Model files → cache-first (very large, stable)
+  // Model weights → aggressive cache (never expire)
   if (MODEL_HOSTS.some(h => url.hostname === h || url.hostname.endsWith('.' + h))) {
-    event.respondWith(cacheFirst(event.request, MODEL_CACHE));
+    e.respondWith(cacheFirst(req, MODEL_CACHE));
     return;
   }
 
-  // CDN scripts → network-first with cache fallback
+  // CDN libraries → network-first (update when online, fall back offline)
   if (CDN_HOSTS.some(h => url.hostname === h || url.hostname.endsWith('.' + h))) {
-    event.respondWith(networkFirst(event.request, APP_CACHE));
+    e.respondWith(networkFirst(req, APP_CACHE));
     return;
   }
 
-  // App shell → cache-first
+  // Own origin → cache-first
   if (url.origin === self.location.origin) {
-    event.respondWith(cacheFirst(event.request, APP_CACHE));
+    e.respondWith(cacheFirst(req, APP_CACHE));
     return;
   }
-
-  // Everything else → network only
-  event.respondWith(fetch(event.request));
 });
 
-// ── STRATEGIES ────────────────────────────────────────────────────
-async function cacheFirst(request, cacheName) {
-  const cached = await caches.match(request);
+async function cacheFirst(req, cacheName) {
+  const cached = await caches.match(req);
   if (cached) return cached;
-
   try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(cacheName);
-      cache.put(request, response.clone());
+    const res = await fetch(req);
+    if (res.ok) {
+      const c = await caches.open(cacheName);
+      c.put(req, res.clone());
     }
-    return response;
+    return res;
   } catch {
-    return new Response('Offline — resource not cached.', {
-      status: 503, headers: { 'Content-Type': 'text/plain' },
-    });
+    return new Response('Offline — resource not in cache.', { status: 503, headers: { 'Content-Type': 'text/plain' } });
   }
 }
 
-async function networkFirst(request, cacheName) {
+async function networkFirst(req, cacheName) {
   try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(cacheName);
-      cache.put(request, response.clone());
-    }
-    return response;
+    const res = await fetch(req);
+    if (res.ok) { const c = await caches.open(cacheName); c.put(req, res.clone()); }
+    return res;
   } catch {
-    const cached = await caches.match(request);
-    if (cached) return cached;
-    return new Response('Offline — resource not cached.', {
-      status: 503, headers: { 'Content-Type': 'text/plain' },
-    });
+    const cached = await caches.match(req);
+    return cached ?? new Response('Offline — resource not in cache.', { status: 503, headers: { 'Content-Type': 'text/plain' } });
   }
 }
 
-// ── MESSAGE HANDLER ───────────────────────────────────────────────
-self.addEventListener('message', event => {
-  if (event.data?.type === 'SKIP_WAITING') {
-    self.skipWaiting();
+// ── MESSAGES ─────────────────────────────────────────────────────
+self.addEventListener('message', e => {
+  if (e.data?.type === 'SKIP_WAITING') self.skipWaiting();
+  if (e.data?.type === 'CLEAR_MODELS') {
+    caches.delete(MODEL_CACHE).then(() => e.ports?.[0]?.postMessage({ ok: true }));
   }
-  if (event.data?.type === 'CLEAR_MODEL_CACHE') {
-    caches.delete(MODEL_CACHE).then(() => {
-      event.ports?.[0]?.postMessage({ success: true });
-    });
-  }
-  if (event.data?.type === 'GET_VERSION') {
-    event.ports?.[0]?.postMessage({ version: APP_CACHE });
+  if (e.data?.type === 'VERSION') {
+    e.ports?.[0]?.postMessage({ version: APP_CACHE });
   }
 });

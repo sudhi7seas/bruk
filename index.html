@@ -5,18 +5,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
 
-  <!-- Security Headers via meta (GitHub Pages fallback) -->
+  <!--
+    Content Security Policy
+    ─────────────────────────────────────────────────────────────────────────
+    GitHub Pages cannot serve custom HTTP headers, so CSP is declared here.
+    'unsafe-eval' is required by Transformers.js WASM compilation.
+    All model weight fetches go to huggingface.co CDN hosts.
+  -->
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://huggingface.co https://huggingface.co/;
-             script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com;
-             worker-src 'self' blob:;
-             connect-src 'self' https://huggingface.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.huggingface.co blob:;
-             style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-             font-src 'self' https://fonts.gstatic.com;
-             img-src 'self' data: blob:;
-             media-src 'self' blob:;" />
-  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+    content="
+      default-src 'self';
+      script-src  'self' 'unsafe-eval' 'unsafe-inline'
+                  https://cdn.jsdelivr.net
+                  https://unpkg.com;
+      worker-src  'self' blob:;
+      connect-src 'self'
+                  https://cdn.jsdelivr.net
+                  https://unpkg.com
+                  https://huggingface.co
+                  https://cdn-lfs.huggingface.co
+                  https://cdn-lfs-us-1.huggingface.co
+                  https://huggingface.co
+                  blob:;
+      style-src   'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src    'self' https://fonts.gstatic.com;
+      img-src     'self' data: blob:;
+      media-src   'self' blob:;
+    " />
+  <meta http-equiv="X-Content-Type-Options"  content="nosniff" />
+  <meta http-equiv="Referrer-Policy"         content="strict-origin-when-cross-origin" />
+  <meta http-equiv="Permissions-Policy"      content="camera=(self), microphone=(self), geolocation=()" />
 
   <title>Brük — German ↔ English Translator</title>
   <meta name="description" content="Privacy-first offline German ↔ English voice, camera & text translator. No servers, no data collection." />
@@ -28,21 +46,41 @@
   <meta name="apple-mobile-web-app-title" content="Brük" />
 
   <!-- PWA -->
-  <link rel="manifest" href="./manifest.json" />
+  <link rel="manifest"        href="./manifest.json" />
   <link rel="apple-touch-icon" href="./icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
-  <link rel="icon" type="image/png" sizes="512x512" href="./icons/icon-512.png" />
+  <link rel="icon" type="image/png" sizes="512x512"  href="./icons/icon-512.png" />
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
 
+  <!--
+    Import Map
+    ──────────────────────────────────────────────────────────────────────────
+    Declares the bare specifier so every JS module can write:
+      import { pipeline } from '@huggingface/transformers';
+    …and the browser resolves it to the correct CDN URL.
+    This is the ONLY place the CDN URL appears — static string, no variable.
+    Safari 16.4+ supports import maps. Older Safari gets the fallback script.
+  -->
+  <script type="importmap">
+  {
+    "imports": {
+      "@huggingface/transformers": "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.2/dist/transformers.web.js"
+    }
+  }
+  </script>
+
+  <!-- Polyfill for browsers that don't yet support import maps (e.g. older iOS) -->
+  <script async src="https://unpkg.com/es-module-shims@1.10.0/dist/es-module-shims.js"></script>
+
   <link rel="stylesheet" href="./css/style.css" />
 </head>
 <body>
 
-  <!-- App Loading Screen -->
+  <!-- ── LOADING SCREEN ─────────────────────────────────────────── -->
   <div id="loading-screen" class="loading-screen" aria-live="polite" aria-label="Loading Brük">
     <div class="loading-content">
       <div class="loading-logo">
@@ -60,7 +98,7 @@
     </div>
   </div>
 
-  <!-- Main App -->
+  <!-- ── MAIN APP ───────────────────────────────────────────────── -->
   <div id="app" class="app hidden" role="main">
 
     <!-- Header -->
@@ -70,10 +108,10 @@
         <span class="brand-sub">DE ↔ EN</span>
       </div>
       <div class="header-right">
-        <button class="icon-btn" id="theme-toggle" aria-label="Toggle light/dark mode" title="Toggle theme">
+        <button class="icon-btn" id="theme-toggle" aria-label="Toggle light/dark mode">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
         </button>
-        <button class="icon-btn" id="settings-btn" aria-label="Settings" title="Settings">
+        <button class="icon-btn" id="settings-btn" aria-label="Settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
       </div>
@@ -81,7 +119,7 @@
 
     <!-- Mode Tabs -->
     <nav class="mode-tabs" role="tablist" aria-label="Translation mode">
-      <button class="mode-tab active" id="tab-short" role="tab" aria-selected="true" aria-controls="panel-short" data-mode="short">
+      <button class="mode-tab active" id="tab-short" role="tab" aria-selected="true"  aria-controls="panel-short" data-mode="short">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         Quick
       </button>
@@ -91,14 +129,14 @@
       </button>
     </nav>
 
-    <!-- SHORT MODE PANEL -->
+    <!-- ── QUICK MODE PANEL ────────────────────────────────────── -->
     <section id="panel-short" class="panel active" role="tabpanel" aria-labelledby="tab-short">
 
       <!-- Direction Selector -->
       <div class="direction-bar">
         <button class="lang-chip active" id="dir-de-en" data-dir="de-en" aria-pressed="true">DE → EN</button>
-        <button class="lang-chip" id="dir-auto" data-dir="auto" aria-pressed="false">Auto</button>
-        <button class="lang-chip" id="dir-en-de" data-dir="en-de" aria-pressed="false">EN → DE</button>
+        <button class="lang-chip"        id="dir-auto"  data-dir="auto"  aria-pressed="false">Auto</button>
+        <button class="lang-chip"        id="dir-en-de" data-dir="en-de" aria-pressed="false">EN → DE</button>
       </div>
 
       <!-- Input Area -->
@@ -109,17 +147,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
-        <textarea
-          id="input-text"
-          class="input-textarea"
-          placeholder="Type or speak…"
-          rows="3"
-          aria-label="Text to translate"
-          maxlength="2000"
-          autocorrect="off"
-          autocapitalize="sentences"
-          spellcheck="true"
-        ></textarea>
+        <textarea id="input-text" class="input-textarea"
+          placeholder="Type here, or use the mic / camera below…"
+          rows="4" aria-label="Text to translate"
+          maxlength="2000" autocorrect="off" spellcheck="true"></textarea>
         <div class="char-count"><span id="char-count">0</span>/2000</div>
       </div>
 
@@ -134,20 +165,18 @@
         <div class="mic-wrap">
           <button class="mic-btn" id="mic-btn" aria-label="Start voice input" aria-pressed="false">
             <div class="mic-rings">
-              <div class="ring r1"></div>
-              <div class="ring r2"></div>
-              <div class="ring r3"></div>
+              <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div>
             </div>
             <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
               <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
               <line x1="12" y1="19" x2="12" y2="23"/>
-              <line x1="8" y1="23" x2="16" y2="23"/>
+              <line x1="8"  y1="23" x2="16" y2="23"/>
             </svg>
-            <div class="timer-ring-wrap hidden" id="timer-ring-wrap">
+            <div class="timer-ring-wrap hidden" id="timer-ring-wrap" aria-hidden="true">
               <svg class="timer-ring" viewBox="0 0 48 48">
-                <circle class="timer-track" cx="24" cy="24" r="20" />
-                <circle class="timer-progress" id="timer-progress" cx="24" cy="24" r="20" />
+                <circle class="timer-track"    cx="24" cy="24" r="20"/>
+                <circle class="timer-progress" cx="24" cy="24" r="20" id="timer-progress"/>
               </svg>
               <span class="timer-count" id="timer-count">15</span>
             </div>
@@ -160,12 +189,18 @@
         </button>
       </div>
 
+      <!-- Model loading indicator (shown during first translation) -->
+      <div class="model-loading-hint hidden" id="model-loading-hint">
+        <div class="spinner"></div>
+        <span id="model-loading-text">Loading translation model… (first run only, ~75 MB)</span>
+      </div>
+
       <!-- Result Card -->
-      <div class="result-card hidden" id="result-card" aria-live="polite" aria-label="Translation result">
+      <div class="result-card hidden" id="result-card" aria-live="polite">
         <div class="result-header">
           <span class="lang-label" id="target-lang-label">English</span>
           <div class="result-actions">
-            <button class="icon-btn" id="speak-btn" aria-label="Read translation aloud">
+            <button class="icon-btn" id="speak-btn"  aria-label="Read aloud">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
             </button>
             <button class="icon-btn" id="copy-btn" aria-label="Copy translation">
@@ -173,25 +208,23 @@
             </button>
           </div>
         </div>
-        <p class="result-text" id="result-text" lang="en"></p>
+        <p class="result-text" id="result-text"></p>
         <div class="diet-badge hidden" id="diet-badge">
-          <span class="diet-icon" id="diet-icon"></span>
+          <span class="diet-icon"  id="diet-icon"></span>
           <span class="diet-label" id="diet-label"></span>
         </div>
         <div class="original-text-wrap">
-          <span class="original-label">Original:</span>
+          <span class="original-label">Original: </span>
           <span class="original-text" id="original-text"></span>
         </div>
       </div>
 
-      <!-- Camera View -->
+      <!-- Camera View (full-screen overlay) -->
       <div class="camera-view hidden" id="camera-view">
         <video id="camera-feed" autoplay playsinline muted aria-label="Camera viewfinder"></video>
-        <div class="camera-overlay">
-          <div class="camera-frame"></div>
-        </div>
+        <div class="camera-overlay"><div class="camera-frame"></div></div>
         <div class="camera-controls">
-          <button class="cam-action-btn" id="capture-btn" aria-label="Capture image">
+          <button class="cam-action-btn" id="capture-btn" aria-label="Capture">
             <div class="capture-inner"></div>
           </button>
           <button class="cam-close-btn" id="close-camera-btn" aria-label="Close camera">
@@ -203,27 +236,21 @@
 
     </section>
 
-    <!-- CONVERSATION MODE PANEL -->
+    <!-- ── CONVERSATION MODE PANEL ─────────────────────────────── -->
     <section id="panel-convo" class="panel hidden" role="tabpanel" aria-labelledby="tab-convo">
       <div class="convo-layout">
 
-        <!-- German side -->
         <div class="convo-side de-side">
-          <div class="convo-side-header">
-            <span class="convo-lang-badge">🇩🇪 Deutsch</span>
-          </div>
+          <div class="convo-side-header"><span class="convo-lang-badge">🇩🇪 Deutsch</span></div>
           <button class="convo-mic-btn" id="convo-de-mic" aria-label="Speak German" aria-pressed="false" data-lang="de">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
             Sprechen
           </button>
         </div>
 
-        <!-- Conversation log -->
         <div class="convo-log-wrap">
           <div class="convo-log" id="convo-log" aria-live="polite" aria-label="Conversation history">
-            <div class="convo-empty">
-              <p>Tap a mic button to begin the conversation.</p>
-            </div>
+            <div class="convo-empty"><p>Tap a microphone button to start.</p></div>
           </div>
           <div class="convo-toolbar">
             <button class="text-btn" id="clear-convo-btn">Clear</button>
@@ -231,11 +258,8 @@
           </div>
         </div>
 
-        <!-- English side -->
         <div class="convo-side en-side">
-          <div class="convo-side-header">
-            <span class="convo-lang-badge">🇬🇧 English</span>
-          </div>
+          <div class="convo-side-header"><span class="convo-lang-badge">🇬🇧 English</span></div>
           <button class="convo-mic-btn" id="convo-en-mic" aria-label="Speak English" aria-pressed="false" data-lang="en">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
             Speak
@@ -247,7 +271,7 @@
 
   </div><!-- /app -->
 
-  <!-- Settings Panel -->
+  <!-- ── SETTINGS PANEL ────────────────────────────────────────── -->
   <div class="settings-overlay hidden" id="settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-title">
     <div class="settings-panel">
       <div class="settings-header">
@@ -256,72 +280,68 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
-
       <div class="settings-body">
+
         <div class="settings-section">
           <h3>Voice Output</h3>
           <label class="settings-row">
             <span>Speech Rate</span>
-            <input type="range" id="speech-rate" min="0.5" max="2" step="0.1" value="1" aria-label="Speech rate" />
+            <input type="range" id="speech-rate" min="0.5" max="2" step="0.1" value="1" />
             <span id="speech-rate-val">1.0×</span>
           </label>
           <label class="settings-row">
             <span>Pitch</span>
-            <input type="range" id="speech-pitch" min="0.5" max="2" step="0.1" value="1" aria-label="Speech pitch" />
+            <input type="range" id="speech-pitch" min="0.5" max="2" step="0.1" value="1" />
             <span id="speech-pitch-val">1.0</span>
           </label>
         </div>
 
         <div class="settings-section">
           <h3>Translation</h3>
-          <label class="settings-row">
+          <div class="settings-row">
             <span>Auto-speak result</span>
             <button class="toggle" id="auto-speak-toggle" role="switch" aria-checked="true">
               <span class="toggle-thumb"></span>
             </button>
-          </label>
-          <label class="settings-row">
+          </div>
+          <div class="settings-row">
             <span>Voice timer (seconds)</span>
-            <select id="timer-duration" aria-label="Voice timer duration">
+            <select id="timer-duration">
               <option value="10">10 s</option>
               <option value="15" selected>15 s</option>
               <option value="20">20 s</option>
               <option value="30">30 s</option>
             </select>
-          </label>
+          </div>
         </div>
 
         <div class="settings-section">
           <h3>Models</h3>
+          <p class="settings-note" style="margin-bottom:12px">
+            Models download once (~75 MB each) over Wi-Fi and are stored on-device.
+            They load automatically on first use. Use the button below to preload all at once.
+          </p>
           <div class="model-status-list" id="model-status-list">
-            <div class="model-row">
-              <span>Translation (DE→EN)</span>
-              <span class="model-badge" id="model-de-en-status">Not loaded</span>
-            </div>
-            <div class="model-row">
-              <span>Translation (EN→DE)</span>
-              <span class="model-badge" id="model-en-de-status">Not loaded</span>
-            </div>
-            <div class="model-row">
-              <span>Speech Recognition</span>
-              <span class="model-badge" id="model-whisper-status">Not loaded</span>
-            </div>
+            <div class="model-row"><span>Translation (DE→EN)</span><span class="model-badge" id="model-de-en-status">Not loaded</span></div>
+            <div class="model-row"><span>Translation (EN→DE)</span><span class="model-badge" id="model-en-de-status">Not loaded</span></div>
+            <div class="model-row"><span>Speech Recognition</span><span class="model-badge"  id="model-whisper-status">Not loaded</span></div>
           </div>
-          <button class="text-btn accent" id="preload-models-btn">Download All Models</button>
+          <button class="text-btn accent" id="preload-models-btn" style="margin-top:12px">Download All Models</button>
         </div>
 
         <div class="settings-section">
           <h3>Privacy</h3>
-          <p class="settings-note">All processing happens on your device. No audio, text, or images are ever sent to any server.</p>
+          <p class="settings-note">All speech, text, and images are processed entirely on this device. Nothing is ever sent to any server.</p>
         </div>
+
       </div>
     </div>
   </div>
 
-  <!-- Toast Notifications -->
+  <!-- Toast container -->
   <div class="toast-container" id="toast-container" aria-live="assertive" aria-atomic="true"></div>
 
-  <!-- Error Modal -->
+  <!-- Error modal -->
   <div class="modal-overlay hidden" id="error-modal" role="alertdialog" aria-modal="true" aria-labelledby="error-title">
     <div class="modal">
       <div class="modal-icon error">

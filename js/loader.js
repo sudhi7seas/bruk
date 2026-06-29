@@ -1,29 +1,42 @@
 /**
  * Brük — Transformers.js Loader
- * Single shared import of @xenova/transformers so all modules share the
- * same pipeline cache and WASM context.
  *
- * Using a top-level await import means the CDN URL is fixed at parse time.
- * The SW will cache the CDN script after first load.
+ * The importmap in index.html maps the bare specifier
+ *   '@huggingface/transformers'
+ * to the correct CDN URL. This file uses that bare specifier —
+ * a static string — so browsers never need to evaluate a variable URL.
+ *
+ * All three modules (translation, speech-input, diet) share this single
+ * import so the WASM runtime and model caches are never duplicated.
  */
 
-const TRANSFORMERS_CDN =
-  'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js';
+import {
+  pipeline,
+  env,
+} from '@huggingface/transformers';
 
-let _mod = null;
+// ── Global settings (applied once) ───────────────────────────────
+// Allow browser's Cache API to store model weights between sessions.
+env.allowLocalModels  = false;
+env.useBrowserCache   = true;
 
-export async function getTransformers() {
-  if (_mod) return _mod;
-  try {
-    _mod = await import(/* @vite-ignore */ TRANSFORMERS_CDN);
-    // Enable browser cache for model weights
-    _mod.env.allowLocalModels = false;
-    _mod.env.useBrowserCache = true;
-    return _mod;
-  } catch (err) {
-    throw new Error(
-      'Could not load the AI library. Please check your internet connection and try again. ' +
-      '(Models only need to download once.)\n\nDetails: ' + err.message
-    );
-  }
+// Pipeline cache — keyed by task+model string
+const _cache = new Map();
+
+/**
+ * Returns a cached pipeline, loading it on first call.
+ * @param {string} task  — e.g. 'translation', 'automatic-speech-recognition'
+ * @param {string} model — HuggingFace model ID
+ * @param {object} [opts] — passed to pipeline()
+ * @returns {Promise<Function>}
+ */
+export async function getPipeline(task, model, opts = {}) {
+  const key = `${task}::${model}`;
+  if (_cache.has(key)) return _cache.get(key);
+
+  const pipe = await pipeline(task, model, opts);
+  _cache.set(key, pipe);
+  return pipe;
 }
+
+export { env };

@@ -1,6 +1,5 @@
 /**
- * Brük — App Orchestration
- * Wires up all modules; handles every user interaction.
+ * Brük — App Orchestration v1.1
  */
 
 import { CONFIG } from './config.js';
@@ -14,6 +13,7 @@ import {
   openSettings, closeSettings as _closeSettings,
   updateCharCount, addConvoBubble, clearConvoLog,
   updateModelStatus,
+  showModelLoadingHint, hideModelLoadingHint,
 } from './ui.js';
 import { translate, detectLanguage, preloadTranslationModels, TranslationError } from './translation.js';
 import {
@@ -26,18 +26,18 @@ import { openCamera, closeCamera, captureAndOCR, CameraError } from './camera.js
 import { detectDiet } from './diet.js';
 import { startTimer, clearTimer } from './timer.js';
 
-// ── STATE ─────────────────────────────────────────────────────────
+// ── APP STATE ─────────────────────────────────────────────────────
 const S = {
-  direction:        'de-en',
-  recording:        false,
-  translating:      false,
-  autoSpeak:        true,
-  ttsRate:          1.0,
-  ttsPitch:         1.0,
-  timerDuration:    15,
-  lastResult:       null,   // { text, lang }
-  convoLog:         [],
-  convoActive:      false,  // prevent double-tap on conversation mics
+  direction:     'de-en',
+  recording:     false,
+  translating:   false,
+  autoSpeak:     true,
+  ttsRate:       1.0,
+  ttsPitch:      1.0,
+  timerDuration: 15,
+  lastResult:    null,   // { text, lang }
+  convoLog:      [],
+  convoActive:   false,
 };
 
 // ── BOOT ──────────────────────────────────────────────────────────
@@ -45,9 +45,9 @@ async function boot() {
   applyTheme(getTheme());
   setLoadingProgress(10, 'Loading interface…');
   restorePreferences();
-  setLoadingProgress(30, 'Registering offline support…');
+  setLoadingProgress(40, 'Registering offline support…');
   await registerSW();
-  setLoadingProgress(60, 'Binding controls…');
+  setLoadingProgress(80, 'Wiring up controls…');
   bindAll();
   handleUrlMode();
   setLoadingProgress(100, 'Ready!');
@@ -59,7 +59,6 @@ function handleUrlMode() {
   if (p.get('mode') === 'conversation') switchTab('conversation');
 }
 
-// ── SERVICE WORKER ────────────────────────────────────────────────
 async function registerSW() {
   if (!('serviceWorker' in navigator)) return;
   try {
@@ -67,14 +66,11 @@ async function registerSW() {
     reg.addEventListener('updatefound', () => {
       const nw = reg.installing;
       nw?.addEventListener('statechange', () => {
-        if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-          showToast('Update available — reload to apply.', '', 6000);
-        }
+        if (nw.state === 'installed' && navigator.serviceWorker.controller)
+          showToast('App update ready — tap here to refresh.', '', 8000);
       });
     });
-  } catch (err) {
-    console.warn('[Brük] SW registration failed:', err);
-  }
+  } catch (err) { console.warn('[Brük] SW:', err); }
 }
 
 // ── PREFERENCES ───────────────────────────────────────────────────
@@ -83,7 +79,7 @@ function restorePreferences() {
   S.direction     = localStorage.getItem(K.DIR_PREFERENCE) ?? 'de-en';
   S.ttsRate       = parseFloat(localStorage.getItem(K.TTS_RATE)   ?? '1');
   S.ttsPitch      = parseFloat(localStorage.getItem(K.TTS_PITCH)  ?? '1');
-  S.autoSpeak     = localStorage.getItem(K.AUTO_SPEAK)  !== 'false';
+  S.autoSpeak     = localStorage.getItem(K.AUTO_SPEAK) !== 'false';
   S.timerDuration = parseInt(localStorage.getItem(K.TIMER_DURATION) ?? '15', 10);
 
   setDirection(S.direction);
@@ -93,111 +89,93 @@ function restorePreferences() {
   EL.timerDuration.value = S.timerDuration;
 }
 
-function savePref(key, value) { localStorage.setItem(key, value); }
+const save = (key, val) => localStorage.setItem(key, val);
 
-// ── EVENT WIRING ──────────────────────────────────────────────────
+// ── EVENT BINDING ─────────────────────────────────────────────────
 function bindAll() {
-  // Theme / settings
   EL.themeToggle.addEventListener('click', toggleTheme);
   EL.settingsBtn.addEventListener('click', openSettings);
   EL.closeSettings.addEventListener('click', _closeSettings);
   EL.settingsOverlay.addEventListener('click', e => { if (e.target === EL.settingsOverlay) _closeSettings(); });
   EL.settingsOverlay.addEventListener('keydown', e => { if (e.key === 'Escape') _closeSettings(); });
 
-  // Tabs
   EL.tabShort.addEventListener('click', () => switchTab('short'));
   EL.tabConvo.addEventListener('click', () => { stopSpeaking(); switchTab('conversation'); });
 
-  // Direction chips
   [EL.dirDeEn, EL.dirAuto, EL.dirEnDe].forEach(btn =>
     btn.addEventListener('click', () => {
       S.direction = btn.dataset.dir;
       setDirection(S.direction);
-      savePref(CONFIG.STORAGE_KEYS.DIR_PREFERENCE, S.direction);
+      save(CONFIG.STORAGE_KEYS.DIR_PREFERENCE, S.direction);
     })
   );
 
-  // Text input
   EL.inputText.addEventListener('input', () => {
     const n = EL.inputText.value.length;
     updateCharCount(n);
     EL.clearInput.classList.toggle('hidden', n === 0);
-    if (n === 0) hideResult();
+    if (n === 0) { hideResult(); hideModelLoadingHint(); }
   });
   EL.clearInput.addEventListener('click', () => {
-    EL.inputText.value = '';
-    updateCharCount(0);
+    EL.inputText.value = ''; updateCharCount(0);
     EL.clearInput.classList.add('hidden');
-    hideResult();
-    stopSpeaking();
+    hideResult(); hideModelLoadingHint(); stopSpeaking();
   });
 
-  // Translate
   EL.translateBtn.addEventListener('click', doTranslate);
   EL.inputText.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doTranslate();
   });
 
-  // Mic
   EL.micBtn.addEventListener('click', toggleMic);
-
-  // Camera
   EL.cameraBtn.addEventListener('click', doCameraOpen);
-  EL.closeCameraBtn.addEventListener('click', () => { closeCamera(); });
+  EL.closeCameraBtn.addEventListener('click', closeCamera);
   EL.captureBtn.addEventListener('click', doCapture);
 
-  // Result actions
   EL.speakBtn.addEventListener('click', () => {
     if (S.lastResult) speak(S.lastResult.text, S.lastResult.lang, { rate: S.ttsRate, pitch: S.ttsPitch });
   });
   EL.copyBtn.addEventListener('click', async () => {
     if (!S.lastResult) return;
-    try {
-      await navigator.clipboard.writeText(S.lastResult.text);
-      showToast('Copied!', 'success');
-    } catch {
-      showToast('Select and copy the text manually.', '');
-    }
+    try { await navigator.clipboard.writeText(S.lastResult.text); showToast('Copied!', 'success'); }
+    catch { showToast('Copy failed — please select text manually.', ''); }
   });
 
-  // Settings controls
   EL.speechRate.addEventListener('input', () => {
     S.ttsRate = parseFloat(EL.speechRate.value);
     EL.speechRateVal.textContent = `${S.ttsRate.toFixed(1)}×`;
-    savePref(CONFIG.STORAGE_KEYS.TTS_RATE, S.ttsRate);
+    save(CONFIG.STORAGE_KEYS.TTS_RATE, S.ttsRate);
   });
   EL.speechPitch.addEventListener('input', () => {
     S.ttsPitch = parseFloat(EL.speechPitch.value);
     EL.speechPitchVal.textContent = S.ttsPitch.toFixed(1);
-    savePref(CONFIG.STORAGE_KEYS.TTS_PITCH, S.ttsPitch);
+    save(CONFIG.STORAGE_KEYS.TTS_PITCH, S.ttsPitch);
   });
   EL.autoSpeakToggle.addEventListener('click', () => {
     S.autoSpeak = !S.autoSpeak;
     EL.autoSpeakToggle.setAttribute('aria-checked', String(S.autoSpeak));
-    savePref(CONFIG.STORAGE_KEYS.AUTO_SPEAK, S.autoSpeak);
+    save(CONFIG.STORAGE_KEYS.AUTO_SPEAK, S.autoSpeak);
   });
   EL.timerDuration.addEventListener('change', () => {
     S.timerDuration = parseInt(EL.timerDuration.value, 10);
-    savePref(CONFIG.STORAGE_KEYS.TIMER_DURATION, S.timerDuration);
+    save(CONFIG.STORAGE_KEYS.TIMER_DURATION, S.timerDuration);
   });
   EL.preloadModelsBtn.addEventListener('click', doPreloadModels);
 
-  // Error modal
   EL.errorDismiss.addEventListener('click', dismissError);
   EL.errorRetry.addEventListener('click', () => { const fn = getErrorRetryCallback(); dismissError(); fn?.(); });
   EL.errorModal.addEventListener('keydown', e => { if (e.key === 'Escape') dismissError(); });
 
-  // Conversation
   EL.convoDeMic.addEventListener('click', () => doConvoMic('de'));
   EL.convoEnMic.addEventListener('click', () => doConvoMic('en'));
   EL.clearConvoBtn.addEventListener('click', () => { clearConvoLog(); S.convoLog = []; });
   EL.exportConvoBtn.addEventListener('click', doExportConvo);
 }
 
-// ── TRANSLATE ────────────────────────────────────────────────────
+// ── TRANSLATE ─────────────────────────────────────────────────────
 async function doTranslate() {
   const raw = EL.inputText.value.trim();
-  if (!raw) { showToast('Type something first.', ''); return; }
+  if (!raw) { showToast('Type or speak something first.', ''); return; }
   if (S.translating) return;
 
   S.translating = true;
@@ -205,17 +183,25 @@ async function doTranslate() {
   EL.translateBtn.querySelector('span').textContent = 'Translating…';
 
   try {
-    const { translation, detectedDir } = await translate(raw, S.direction);
+    const { translation, detectedDir } = await translate(raw, S.direction, (file, pct) => {
+      // Show inline model-loading progress on first run
+      showModelLoadingHint(
+        `Loading model… ${pct}% — first run only (~75 MB, Wi-Fi recommended)`
+      );
+    });
+
+    hideModelLoadingHint();
     const outLang = detectedDir === 'de-en' ? 'en' : 'de';
+    S.lastResult  = { text: translation, lang: outLang };
 
-    S.lastResult = { text: translation, lang: outLang };
-
-    const dietResult = await detectDiet(raw + ' ' + translation);
-    showResult(translation, raw, dietResult);
+    const diet = await detectDiet(raw + ' ' + translation);
+    showResult(translation, raw, diet);
 
     if (S.autoSpeak) speak(translation, outLang, { rate: S.ttsRate, pitch: S.ttsPitch });
+
   } catch (err) {
-    handleError(err, 'Translation failed', doTranslate);
+    hideModelLoadingHint();
+    handleErr(err, 'Translation failed', doTranslate);
   } finally {
     S.translating = false;
     EL.translateBtn.disabled = false;
@@ -223,44 +209,42 @@ async function doTranslate() {
   }
 }
 
-// ── MIC RECORDING ────────────────────────────────────────────────
+// ── MIC ───────────────────────────────────────────────────────────
 async function toggleMic() {
   if (S.recording) {
-    stopRecording();
-    clearTimer();
-    setMicActive(false);
-    return;
+    stopRecording(); clearTimer(); setMicActive(false); return;
   }
 
   setMicActive(true);
   let blob;
   try {
-    const recPromise = startRecording(S.timerDuration);
-    startTimer(S.timerDuration, null, () => { /* auto-stop handled inside startRecording */ });
-    blob = await recPromise;
+    const p = startRecording(S.timerDuration);
+    startTimer(S.timerDuration, null, () => {});
+    blob = await p;
   } catch (err) {
-    clearTimer();
-    setMicActive(false);
-    if (err instanceof SpeechError) showToast(err.message, 'error', 5000);
-    else handleError(err, 'Recording failed', toggleMic);
+    clearTimer(); setMicActive(false);
+    showToast(err instanceof SpeechError ? err.message : 'Recording failed.', 'error', 5000);
     return;
   }
 
-  clearTimer();
-  setMicActive(false);
+  clearTimer(); setMicActive(false);
   showToast('Recognising speech…', '', 5000);
 
   try {
-    const sourceLang = S.direction === 'en-de' ? 'en' : 'de';
-    const { text } = await transcribe(blob, sourceLang);
+    const srcLang = S.direction === 'en-de' ? 'en' : 'de';
+    const { text } = await transcribe(blob, srcLang, pct =>
+      showModelLoadingHint(`Loading Whisper model… ${pct}% — first run only (~75 MB)`)
+    );
+    hideModelLoadingHint();
     EL.inputText.value = text;
     updateCharCount(text.length);
     EL.clearInput.classList.remove('hidden');
     await doTranslate();
   } catch (err) {
-    // Try Web Speech fallback
+    hideModelLoadingHint();
+    // Try Web Speech API as fallback
     if (isWebSpeechAvailable()) {
-      showToast('Trying device speech recognition…', '');
+      showToast('Trying device speech recognition as fallback…', '', 3000);
       try {
         const lang = S.direction === 'en-de' ? 'en-GB' : 'de-DE';
         const { text } = await transcribeWithWebSpeech(lang);
@@ -269,26 +253,22 @@ async function toggleMic() {
         EL.clearInput.classList.remove('hidden');
         await doTranslate();
         return;
-      } catch { /* fall through to error display */ }
+      } catch { /* fall through */ }
     }
-    if (err instanceof SpeechError) showToast(err.message, 'error', 5000);
-    else handleError(err, 'Speech recognition failed', toggleMic);
+    handleErr(err, 'Speech recognition failed', toggleMic);
   }
 }
 
-function setMicActive(active) {
-  S.recording = active;
-  EL.micBtn.setAttribute('aria-pressed', String(active));
-  EL.micBtn.setAttribute('aria-label', active ? 'Stop recording' : 'Start voice input');
+function setMicActive(on) {
+  S.recording = on;
+  EL.micBtn.setAttribute('aria-pressed', String(on));
+  EL.micBtn.setAttribute('aria-label', on ? 'Stop recording' : 'Start voice input');
 }
 
-// ── CAMERA ───────────────────────────────────────────────────────
+// ── CAMERA ────────────────────────────────────────────────────────
 async function doCameraOpen() {
   try { await openCamera(); }
-  catch (err) {
-    if (err instanceof CameraError) showToast(err.message, 'error', 5000);
-    else handleError(err, 'Camera error', doCameraOpen);
-  }
+  catch (err) { showToast(err instanceof CameraError ? err.message : 'Camera unavailable.', 'error', 5000); }
 }
 
 async function doCapture() {
@@ -298,41 +278,31 @@ async function doCapture() {
     EL.inputText.value = text;
     updateCharCount(text.length);
     EL.clearInput.classList.remove('hidden');
-    // Camera defaults to DE input
-    if (S.direction === 'auto' || S.direction === 'de-en') {
-      // keep current; detectLanguage will confirm
-    }
     await doTranslate();
   } catch (err) {
-    if (err instanceof CameraError) showToast(err.message, 'error', 5000);
-    else handleError(err, 'Capture failed', doCapture);
+    showToast(err instanceof CameraError ? err.message : 'Capture failed.', 'error', 5000);
   }
 }
 
-// ── CONVERSATION MODE ────────────────────────────────────────────
+// ── CONVERSATION MODE ─────────────────────────────────────────────
 async function doConvoMic(lang) {
   if (S.convoActive) return;
   S.convoActive = true;
-
   const btn = lang === 'de' ? EL.convoDeMic : EL.convoEnMic;
   btn.setAttribute('aria-pressed', 'true');
 
   let blob;
   try {
-    const recPromise = startRecording(S.timerDuration);
+    const p = startRecording(S.timerDuration);
     startTimer(S.timerDuration, null, () => {});
-    blob = await recPromise;
+    blob = await p;
   } catch (err) {
-    clearTimer();
-    btn.setAttribute('aria-pressed', 'false');
-    S.convoActive = false;
-    if (err instanceof SpeechError) showToast(err.message, 'error', 5000);
-    else handleError(err, 'Recording failed', () => doConvoMic(lang));
+    clearTimer(); btn.setAttribute('aria-pressed', 'false'); S.convoActive = false;
+    showToast(err instanceof SpeechError ? err.message : 'Recording failed.', 'error', 5000);
     return;
   }
 
-  clearTimer();
-  btn.setAttribute('aria-pressed', 'false');
+  clearTimer(); btn.setAttribute('aria-pressed', 'false');
 
   try {
     const { text: original } = await transcribe(blob, lang);
@@ -346,9 +316,7 @@ async function doConvoMic(lang) {
     );
     if (S.autoSpeak) speak(translation, outLang, { rate: S.ttsRate, pitch: S.ttsPitch });
   } catch (err) {
-    if (err instanceof SpeechError || err instanceof TranslationError)
-      showToast(err.message, 'error', 5000);
-    else handleError(err, 'Conversation error', () => doConvoMic(lang));
+    showToast(err?.message ?? 'Error', 'error', 5000);
   } finally {
     S.convoActive = false;
   }
@@ -357,44 +325,51 @@ async function doConvoMic(lang) {
 // ── EXPORT CONVERSATION ───────────────────────────────────────────
 function doExportConvo() {
   if (!S.convoLog.length) { showToast('Nothing to export yet.', ''); return; }
-
   const lines = S.convoLog.map(e =>
     `${e.lang === 'de' ? '🇩🇪 DE' : '🇬🇧 EN'}\nOriginal:    ${e.original}\nTranslation: ${e.translation}\n`
   );
-  const content = `Brük — Conversation Export\n${new Date().toLocaleString()}\n\n${lines.join('\n')}`;
-  const url = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }));
-  const a = Object.assign(document.createElement('a'), { href: url, download: `bruk-convo-${Date.now()}.txt` });
+  const blob = new Blob(
+    [`Brük Conversation — ${new Date().toLocaleString()}\n\n${lines.join('\n')}`],
+    { type: 'text/plain;charset=utf-8' }
+  );
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: `bruk-${Date.now()}.txt` });
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  showToast('Exported!', 'success');
+  showToast('Conversation exported.', 'success');
 }
 
-// ── MODEL PRELOAD ─────────────────────────────────────────────────
+// ── PRELOAD ALL MODELS ────────────────────────────────────────────
 async function doPreloadModels() {
   EL.preloadModelsBtn.disabled = true;
   EL.preloadModelsBtn.textContent = 'Downloading…';
-  showToast('Downloading AI models — this takes a few minutes on first run.', '', 8000);
+  showToast('Downloading AI models — stay on Wi-Fi, this takes a few minutes.', '', 10000);
+
+  let ok = 0, fail = 0;
+  try {
+    const results = await preloadTranslationModels((dir, file, pct) => {
+      updateModelStatus(dir, `${pct}%`);
+    });
+    results.forEach(r => r.status === 'fulfilled' ? ok++ : fail++);
+  } catch { fail++; }
 
   try {
-    await preloadTranslationModels((dir, _file, pct) => updateModelStatus(dir, `loading (${pct}%)`));
-    await preloadWhisper(pct => updateModelStatus('whisper', `loading (${pct}%)`));
-    showToast('All models downloaded and ready!', 'success', 4000);
-  } catch (err) {
-    showToast('Some models failed. They will load automatically when first used.', 'error', 6000);
-    console.error('[Brük] Model preload error:', err);
-  } finally {
-    EL.preloadModelsBtn.disabled = false;
-    EL.preloadModelsBtn.textContent = 'Download All Models';
-  }
+    await preloadWhisper(pct => updateModelStatus('whisper', `${pct}%`));
+    ok++;
+  } catch { fail++; }
+
+  if (fail === 0) showToast('All models downloaded! Brük is fully offline.', 'success', 5000);
+  else showToast(`${ok} model(s) ready, ${fail} failed. Check your connection and try again.`, 'error', 6000);
+
+  EL.preloadModelsBtn.disabled = false;
+  EL.preloadModelsBtn.textContent = 'Download All Models';
 }
 
 // ── ERROR HANDLER ─────────────────────────────────────────────────
-function handleError(err, title, retryFn) {
+function handleErr(err, title, retryFn) {
   console.error(`[Brük] ${title}:`, err);
-  // Minor errors → toast only
   if (err instanceof SpeechError || err instanceof CameraError) {
-    showToast(err.message, 'error', 5000);
-    return;
+    showToast(err.message, 'error', 6000); return;
   }
   showError(title, err?.message ?? String(err), retryFn);
 }
@@ -403,5 +378,5 @@ function handleError(err, title, retryFn) {
 boot().catch(err => {
   console.error('[Brük] Boot failed:', err);
   const el = document.getElementById('loading-status');
-  if (el) el.textContent = 'Failed to start. Please refresh the page.';
+  if (el) el.textContent = 'Failed to start. Please refresh.';
 });

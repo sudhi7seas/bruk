@@ -797,3 +797,24 @@ body {
 /* ── FOCUS VISIBLE GLOBAL ── */
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 :focus:not(:focus-visible) { outline: none; }
+
+/* ── MODEL LOADING HINT ─────────────────────────────────────────── */
+.model-loading-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-size: 0.8125rem;
+  color: var(--accent);
+  animation: slideUp 0.25s ease;
+}
+.model-loading-hint .spinner {
+  flex-shrink: 0;
+  width: 16px; height: 16px;
+  border-width: 2px;
+  border-color: var(--border);
+  border-top-color: var(--accent);
+}
