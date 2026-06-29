@@ -15,7 +15,7 @@
   <meta http-equiv="Content-Security-Policy"
     content="
       default-src 'self';
-      script-src  'self' 'unsafe-eval' 'unsafe-inline'
+      script-src  'self' 'unsafe-eval'
                   https://cdn.jsdelivr.net
                   https://unpkg.com;
       worker-src  'self' blob:;
@@ -55,27 +55,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
-
-  <!--
-    Import Map
-    ──────────────────────────────────────────────────────────────────────────
-    Declares the bare specifier so every JS module can write:
-      import { pipeline } from '@huggingface/transformers';
-    …and the browser resolves it to the correct CDN URL.
-    This is the ONLY place the CDN URL appears — static string, no variable.
-    Safari 16.4+ supports import maps. Older Safari gets the fallback script.
-  -->
-  <script type="importmap">
-  {
-    "imports": {
-      "@huggingface/transformers": "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.2/dist/transformers.web.js"
-    }
-  }
-  </script>
-
-  <!-- Polyfill for browsers that don't yet support import maps (e.g. older iOS) -->
-  <script async src="https://unpkg.com/es-module-shims@1.10.0/dist/es-module-shims.js"></script>
-
   <link rel="stylesheet" href="./css/style.css" />
 </head>
 <body>

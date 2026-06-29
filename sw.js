@@ -7,7 +7,7 @@
  *   CDN scripts → network-first with cache fallback (APP_CACHE)
  */
 
-const APP_CACHE   = 'bruk-app-v1.1.0';
+const APP_CACHE   = 'bruk-app-v1.2.0';
 const MODEL_CACHE = 'bruk-models-v1';
 
 const PRECACHE = [
