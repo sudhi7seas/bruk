@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+
+  <!-- Security Headers via meta (GitHub Pages fallback) -->
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://huggingface.co https://huggingface.co/;
+             script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com;
+             worker-src 'self' blob:;
+             connect-src 'self' https://huggingface.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.huggingface.co blob:;
+             style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+             font-src 'self' https://fonts.gstatic.com;
+             img-src 'self' data: blob:;
+             media-src 'self' blob:;" />
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+
+  <title>Brük — German ↔ English Translator</title>
+  <meta name="description" content="Privacy-first offline German ↔ English voice, camera & text translator. No servers, no data collection." />
+  <meta name="theme-color" content="#0F172A" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#F0F4FF" media="(prefers-color-scheme: light)" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Brük" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="./icons/icon-512.png" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+
+  <!-- App Loading Screen -->
+  <div id="loading-screen" class="loading-screen" aria-live="polite" aria-label="Loading Brük">
+    <div class="loading-content">
+      <div class="loading-logo">
+        <span class="logo-de">DE</span>
+        <div class="logo-bridge">
+          <div class="bridge-arc"></div>
+          <span class="logo-name">Brük</span>
+        </div>
+        <span class="logo-en">EN</span>
+      </div>
+      <div class="loading-bar-wrap">
+        <div class="loading-bar" id="loading-bar"></div>
+      </div>
+      <p class="loading-status" id="loading-status">Starting up…</p>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="app" class="app hidden" role="main">
+
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <span class="brand">Brük</span>
+        <span class="brand-sub">DE ↔ EN</span>
+      </div>
+      <div class="header-right">
+        <button class="icon-btn" id="theme-toggle" aria-label="Toggle light/dark mode" title="Toggle theme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        </button>
+        <button class="icon-btn" id="settings-btn" aria-label="Settings" title="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Mode Tabs -->
+    <nav class="mode-tabs" role="tablist" aria-label="Translation mode">
+      <button class="mode-tab active" id="tab-short" role="tab" aria-selected="true" aria-controls="panel-short" data-mode="short">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Quick
+      </button>
+      <button class="mode-tab" id="tab-convo" role="tab" aria-selected="false" aria-controls="panel-convo" data-mode="conversation">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2v4l-4-4H9a1.994 1.994 0 0 1-1.414-.586m0 0L11 14h4a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2v4l.586-.586z"/></svg>
+        Gespräch
+      </button>
+    </nav>
+
+    <!-- SHORT MODE PANEL -->
+    <section id="panel-short" class="panel active" role="tabpanel" aria-labelledby="tab-short">
+
+      <!-- Direction Selector -->
+      <div class="direction-bar">
+        <button class="lang-chip active" id="dir-de-en" data-dir="de-en" aria-pressed="true">DE → EN</button>
+        <button class="lang-chip" id="dir-auto" data-dir="auto" aria-pressed="false">Auto</button>
+        <button class="lang-chip" id="dir-en-de" data-dir="en-de" aria-pressed="false">EN → DE</button>
+      </div>
+
+      <!-- Input Area -->
+      <div class="input-area">
+        <div class="input-label-row">
+          <span class="lang-label" id="source-lang-label">Deutsch</span>
+          <button class="clear-btn hidden" id="clear-input" aria-label="Clear input">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <textarea
+          id="input-text"
+          class="input-textarea"
+          placeholder="Type or speak…"
+          rows="3"
+          aria-label="Text to translate"
+          maxlength="2000"
+          autocorrect="off"
+          autocapitalize="sentences"
+          spellcheck="true"
+        ></textarea>
+        <div class="char-count"><span id="char-count">0</span>/2000</div>
+      </div>
+
+      <!-- Input Method Buttons -->
+      <div class="input-actions">
+        <button class="action-btn camera-btn" id="camera-btn" aria-label="Scan text with camera">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          <span>Camera</span>
+        </button>
+
+        <!-- Primary Mic Button -->
+        <div class="mic-wrap">
+          <button class="mic-btn" id="mic-btn" aria-label="Start voice input" aria-pressed="false">
+            <div class="mic-rings">
+              <div class="ring r1"></div>
+              <div class="ring r2"></div>
+              <div class="ring r3"></div>
+            </div>
+            <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+            <div class="timer-ring-wrap hidden" id="timer-ring-wrap">
+              <svg class="timer-ring" viewBox="0 0 48 48">
+                <circle class="timer-track" cx="24" cy="24" r="20" />
+                <circle class="timer-progress" id="timer-progress" cx="24" cy="24" r="20" />
+              </svg>
+              <span class="timer-count" id="timer-count">15</span>
+            </div>
+          </button>
+        </div>
+
+        <button class="action-btn translate-btn" id="translate-btn" aria-label="Translate text">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+          <span>Translate</span>
+        </button>
+      </div>
+
+      <!-- Result Card -->
+      <div class="result-card hidden" id="result-card" aria-live="polite" aria-label="Translation result">
+        <div class="result-header">
+          <span class="lang-label" id="target-lang-label">English</span>
+          <div class="result-actions">
+            <button class="icon-btn" id="speak-btn" aria-label="Read translation aloud">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            </button>
+            <button class="icon-btn" id="copy-btn" aria-label="Copy translation">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+        </div>
+        <p class="result-text" id="result-text" lang="en"></p>
+        <div class="diet-badge hidden" id="diet-badge">
+          <span class="diet-icon" id="diet-icon"></span>
+          <span class="diet-label" id="diet-label"></span>
+        </div>
+        <div class="original-text-wrap">
+          <span class="original-label">Original:</span>
+          <span class="original-text" id="original-text"></span>
+        </div>
+      </div>
+
+      <!-- Camera View -->
+      <div class="camera-view hidden" id="camera-view">
+        <video id="camera-feed" autoplay playsinline muted aria-label="Camera viewfinder"></video>
+        <div class="camera-overlay">
+          <div class="camera-frame"></div>
+        </div>
+        <div class="camera-controls">
+          <button class="cam-action-btn" id="capture-btn" aria-label="Capture image">
+            <div class="capture-inner"></div>
+          </button>
+          <button class="cam-close-btn" id="close-camera-btn" aria-label="Close camera">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <canvas id="capture-canvas" class="hidden" aria-hidden="true"></canvas>
+      </div>
+
+    </section>
+
+    <!-- CONVERSATION MODE PANEL -->
+    <section id="panel-convo" class="panel hidden" role="tabpanel" aria-labelledby="tab-convo">
+      <div class="convo-layout">
+
+        <!-- German side -->
+        <div class="convo-side de-side">
+          <div class="convo-side-header">
+            <span class="convo-lang-badge">🇩🇪 Deutsch</span>
+          </div>
+          <button class="convo-mic-btn" id="convo-de-mic" aria-label="Speak German" aria-pressed="false" data-lang="de">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            Sprechen
+          </button>
+        </div>
+
+        <!-- Conversation log -->
+        <div class="convo-log-wrap">
+          <div class="convo-log" id="convo-log" aria-live="polite" aria-label="Conversation history">
+            <div class="convo-empty">
+              <p>Tap a mic button to begin the conversation.</p>
+            </div>
+          </div>
+          <div class="convo-toolbar">
+            <button class="text-btn" id="clear-convo-btn">Clear</button>
+            <button class="text-btn accent" id="export-convo-btn">Export</button>
+          </div>
+        </div>
+
+        <!-- English side -->
+        <div class="convo-side en-side">
+          <div class="convo-side-header">
+            <span class="convo-lang-badge">🇬🇧 English</span>
+          </div>
+          <button class="convo-mic-btn" id="convo-en-mic" aria-label="Speak English" aria-pressed="false" data-lang="en">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            Speak
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+  </div><!-- /app -->
+
+  <!-- Settings Panel -->
+  <div class="settings-overlay hidden" id="settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="settings-panel">
+      <div class="settings-header">
+        <h2 id="settings-title">Settings</h2>
+        <button class="icon-btn" id="close-settings" aria-label="Close settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <div class="settings-body">
+        <div class="settings-section">
+          <h3>Voice Output</h3>
+          <label class="settings-row">
+            <span>Speech Rate</span>
+            <input type="range" id="speech-rate" min="0.5" max="2" step="0.1" value="1" aria-label="Speech rate" />
+            <span id="speech-rate-val">1.0×</span>
+          </label>
+          <label class="settings-row">
+            <span>Pitch</span>
+            <input type="range" id="speech-pitch" min="0.5" max="2" step="0.1" value="1" aria-label="Speech pitch" />
+            <span id="speech-pitch-val">1.0</span>
+          </label>
+        </div>
+
+        <div class="settings-section">
+          <h3>Translation</h3>
+          <label class="settings-row">
+            <span>Auto-speak result</span>
+            <button class="toggle" id="auto-speak-toggle" role="switch" aria-checked="true">
+              <span class="toggle-thumb"></span>
+            </button>
+          </label>
+          <label class="settings-row">
+            <span>Voice timer (seconds)</span>
+            <select id="timer-duration" aria-label="Voice timer duration">
+              <option value="10">10 s</option>
+              <option value="15" selected>15 s</option>
+              <option value="20">20 s</option>
+              <option value="30">30 s</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="settings-section">
+          <h3>Models</h3>
+          <div class="model-status-list" id="model-status-list">
+            <div class="model-row">
+              <span>Translation (DE→EN)</span>
+              <span class="model-badge" id="model-de-en-status">Not loaded</span>
+            </div>
+            <div class="model-row">
+              <span>Translation (EN→DE)</span>
+              <span class="model-badge" id="model-en-de-status">Not loaded</span>
+            </div>
+            <div class="model-row">
+              <span>Speech Recognition</span>
+              <span class="model-badge" id="model-whisper-status">Not loaded</span>
+            </div>
+          </div>
+          <button class="text-btn accent" id="preload-models-btn">Download All Models</button>
+        </div>
+
+        <div class="settings-section">
+          <h3>Privacy</h3>
+          <p class="settings-note">All processing happens on your device. No audio, text, or images are ever sent to any server.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notifications -->
+  <div class="toast-container" id="toast-container" aria-live="assertive" aria-atomic="true"></div>
+
+  <!-- Error Modal -->
+  <div class="modal-overlay hidden" id="error-modal" role="alertdialog" aria-modal="true" aria-labelledby="error-title">
+    <div class="modal">
+      <div class="modal-icon error">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <h3 id="error-title">Something went wrong</h3>
+      <p id="error-message"></p>
+      <div class="modal-actions">
+        <button class="text-btn" id="error-dismiss">Dismiss</button>
+        <button class="text-btn accent" id="error-retry">Try Again</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
