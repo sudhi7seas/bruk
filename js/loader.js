@@ -43,16 +43,14 @@ async function loadLib() {
     try {
       // Primary: pinned version, exactly as HuggingFace's own docs show it.
       const mod = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
-      mod.env.allowLocalModels = false;
-      mod.env.useBrowserCache  = true;
+      configureEnv(mod.env);
       _lib = mod;
       return mod;
     } catch (primaryErr) {
       // Fallback: unpkg mirror, in case jsdelivr is slow/blocked for this user.
       try {
         const mod = await import('https://unpkg.com/@xenova/transformers@2.17.2');
-        mod.env.allowLocalModels = false;
-        mod.env.useBrowserCache  = true;
+        configureEnv(mod.env);
         _lib = mod;
         return mod;
       } catch (fallbackErr) {
@@ -67,6 +65,41 @@ async function loadLib() {
   })();
 
   return _loading;
+}
+
+/**
+ * v1.5 FIX — the actual cause of "Failed to fetch" during pipeline creation.
+ *
+ * The main library file loads fine on its own, but internally it needs to
+ * fetch a *second* set of files: the ONNX Runtime Web WASM binaries that
+ * do the real number-crunching. By default it tries to auto-detect where
+ * those live relative to its own script location — and that detection
+ * does not work reliably when the main library itself was loaded via a
+ * bare dynamic `import()` of a CDN URL (rather than a locally bundled
+ * file), which is exactly Brük's setup. The result is a plain,
+ * unhelpful "Failed to fetch" once you actually try to translate.
+ *
+ * This is a widely documented issue (confirmed across multiple official
+ * HuggingFace/transformers.js GitHub threads). The fix is to explicitly
+ * tell it where those WASM files are, using the *exact* onnxruntime-web
+ * version that this specific transformers.js release depends on
+ * (1.14.0 for @xenova/transformers@2.17.2 — verified from the package's
+ * own published dependency list; using a mismatched version is a
+ * separately documented cause of breakage).
+ */
+function configureEnv(env) {
+  env.allowLocalModels = false;
+  env.useBrowserCache  = true;
+
+  // Explicit WASM binary location — the actual fix for "Failed to fetch".
+  env.backends.onnx.wasm.wasmPaths =
+    'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/';
+
+  // Documented ONNX Runtime Web multi-threading bug (see
+  // microsoft/onnxruntime#14445) causes intermittent failures on some
+  // browsers/devices. Forcing single-threaded WASM is the standard,
+  // widely-used workaround — slightly slower, but reliable everywhere.
+  env.backends.onnx.wasm.numThreads = 1;
 }
 
 /**
