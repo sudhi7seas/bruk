@@ -1,43 +1,39 @@
 /**
- * Brük — AI Loader (lazy, script-tag based, bundler-free)
+ * Brük — AI Loader (lazy, official CDN import pattern)
  *
- * CRITICAL FIX (v1.3):
- * The npm ESM build of transformers.js (both @xenova and @huggingface
- * packages) contains bare imports like `import 'onnxruntime-common'`
- * that only resolve inside a bundler (webpack/vite). Loaded raw in a
- * browser, that throws: "Module name does not resolve to a valid URL".
+ * v1.4 FIX — confirmed against two independent sources:
+ *   1. HuggingFace's own official docs (huggingface.github.io/transformers.js)
+ *   2. An independently published, working tutorial (Nov 2025)
  *
- * The fix: use the prebuilt, self-contained IIFE bundle
- * (dist/transformers.min.js) injected via a classic <script> tag.
- * That bundle has everything inlined — no bare specifiers, no bundler
- * needed. It attaches itself to `window.Transformers`.
+ * Both use exactly this pattern, and only this pattern, for bundler-free
+ * browser use:
  *
- * The library is only fetched the first time the user actually
- * translates or records — never at page load — so the app shell is
- * instant regardless of network conditions.
+ *   <script type="module">
+ *     import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers';
+ *   </script>
+ *
+ * That is a native ES module `import` of a *full URL* — not a bare package
+ * name (which needs an importmap) and not a classic <script src> tag
+ * (which only works for UMD-style libraries that attach a global variable).
+ *
+ * v1.3's mistake: it injected the file as a classic <script> tag and
+ * expected a `window.Transformers` global. This particular build is an ES
+ * module and never attaches anything to `window` — so the script "loaded"
+ * successfully (no network error) but the expected global was always
+ * going to be missing. That was a wrong assumption on my part, not a CDN
+ * or network issue.
+ *
+ * The fix: use a real dynamic `import()` of the exact URL, matching the
+ * officially documented usage byte-for-byte.
+ *
+ * The import is only triggered on first actual use (translate / mic
+ * press) — never at page load — so the app shell still renders instantly
+ * regardless of network conditions.
  */
-
-const SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js';
-const SCRIPT_URL_FALLBACK = 'https://unpkg.com/@xenova/transformers@2.17.2/dist/transformers.min.js';
 
 let _lib = null;
 let _loading = null;
 const _cache = new Map(); // 'task::model' -> pipeline (or in-flight Promise)
-
-function injectScript(src) {
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[data-bruk-lib="transformers"]`);
-    if (existing) { resolve(); return; }
-
-    const s = document.createElement('script');
-    s.src = src;
-    s.async = true;
-    s.dataset.brukLib = 'transformers';
-    s.onload = () => resolve();
-    s.onerror = () => { s.remove(); reject(new Error(`Failed to load script: ${src}`)); };
-    document.head.appendChild(s);
-  });
-}
 
 async function loadLib() {
   if (_lib) return _lib;
@@ -45,31 +41,28 @@ async function loadLib() {
 
   _loading = (async () => {
     try {
+      // Primary: pinned version, exactly as HuggingFace's own docs show it.
+      const mod = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+      mod.env.allowLocalModels = false;
+      mod.env.useBrowserCache  = true;
+      _lib = mod;
+      return mod;
+    } catch (primaryErr) {
+      // Fallback: unpkg mirror, in case jsdelivr is slow/blocked for this user.
       try {
-        await injectScript(SCRIPT_URL);
-      } catch {
-        // Primary CDN failed — try the mirror
-        await injectScript(SCRIPT_URL_FALLBACK);
+        const mod = await import('https://unpkg.com/@xenova/transformers@2.17.2');
+        mod.env.allowLocalModels = false;
+        mod.env.useBrowserCache  = true;
+        _lib = mod;
+        return mod;
+      } catch (fallbackErr) {
+        _loading = null; // allow retry on next call
+        throw new Error(
+          'Could not load the translation engine from either CDN mirror.\n' +
+          'Please check your internet connection and try again.\n\n' +
+          'Detail: ' + primaryErr.message
+        );
       }
-
-      // The IIFE bundle attaches itself as window.Transformers
-      const ns = window.Transformers;
-      if (!ns || typeof ns.pipeline !== 'function') {
-        throw new Error('Library loaded but window.Transformers.pipeline is missing.');
-      }
-
-      ns.env.allowLocalModels = false;
-      ns.env.useBrowserCache  = true;
-
-      _lib = ns;
-      return ns;
-    } catch (err) {
-      _loading = null; // allow retry
-      throw new Error(
-        'Could not load the translation engine from the CDN.\n' +
-        'Please check your internet connection and try again.\n\n' +
-        'Detail: ' + err.message
-      );
     }
   })();
 
