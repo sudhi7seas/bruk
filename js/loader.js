@@ -1,40 +1,72 @@
 /**
- * Brük — AI Loader (lazy, non-blocking)
+ * Brük — AI Loader (lazy, script-tag based, bundler-free)
  *
- * The Transformers.js library is loaded ONLY when first needed (on translate/mic press),
- * NOT at module parse time. This means the app shell renders instantly.
+ * CRITICAL FIX (v1.3):
+ * The npm ESM build of transformers.js (both @xenova and @huggingface
+ * packages) contains bare imports like `import 'onnxruntime-common'`
+ * that only resolve inside a bundler (webpack/vite). Loaded raw in a
+ * browser, that throws: "Module name does not resolve to a valid URL".
  *
- * The dynamic import uses a STATIC STRING LITERAL (required for CSP + browser compat).
- * No importmap needed — the CDN URL is right here as a literal.
+ * The fix: use the prebuilt, self-contained IIFE bundle
+ * (dist/transformers.min.js) injected via a classic <script> tag.
+ * That bundle has everything inlined — no bare specifiers, no bundler
+ * needed. It attaches itself to `window.Transformers`.
+ *
+ * The library is only fetched the first time the user actually
+ * translates or records — never at page load — so the app shell is
+ * instant regardless of network conditions.
  */
 
-// Static string literal — browsers and CSP allow dynamic import of a literal URL
-const HF_CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.2/dist/transformers.web.js';
+const SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js';
+const SCRIPT_URL_FALLBACK = 'https://unpkg.com/@xenova/transformers@2.17.2/dist/transformers.min.js';
 
-let _lib   = null;          // { pipeline, env } once loaded
-let _loading = null;        // in-flight Promise (prevents double-load)
-const _cache = new Map();   // pipeline cache keyed by 'task::model'
+let _lib = null;
+let _loading = null;
+const _cache = new Map(); // 'task::model' -> pipeline (or in-flight Promise)
 
-/**
- * Lazily load the Transformers.js library.
- * Safe to call multiple times — returns cached module after first load.
- */
+function injectScript(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-bruk-lib="transformers"]`);
+    if (existing) { resolve(); return; }
+
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.dataset.brukLib = 'transformers';
+    s.onload = () => resolve();
+    s.onerror = () => { s.remove(); reject(new Error(`Failed to load script: ${src}`)); };
+    document.head.appendChild(s);
+  });
+}
+
 async function loadLib() {
   if (_lib) return _lib;
-  if (_loading) return _loading;          // already in flight — wait for it
+  if (_loading) return _loading;
 
   _loading = (async () => {
     try {
-      // Static string literal import — allowed by CSP and all browsers
-      const mod = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.2/dist/transformers.web.js');
-      mod.env.allowLocalModels = false;
-      mod.env.useBrowserCache  = true;    // persist model weights in Cache Storage
-      _lib = mod;
-      return mod;
+      try {
+        await injectScript(SCRIPT_URL);
+      } catch {
+        // Primary CDN failed — try the mirror
+        await injectScript(SCRIPT_URL_FALLBACK);
+      }
+
+      // The IIFE bundle attaches itself as window.Transformers
+      const ns = window.Transformers;
+      if (!ns || typeof ns.pipeline !== 'function') {
+        throw new Error('Library loaded but window.Transformers.pipeline is missing.');
+      }
+
+      ns.env.allowLocalModels = false;
+      ns.env.useBrowserCache  = true;
+
+      _lib = ns;
+      return ns;
     } catch (err) {
-      _loading = null;                    // allow retry on next call
+      _loading = null; // allow retry
       throw new Error(
-        'Could not load the AI library from CDN.\n' +
+        'Could not load the translation engine from the CDN.\n' +
         'Please check your internet connection and try again.\n\n' +
         'Detail: ' + err.message
       );
@@ -45,33 +77,27 @@ async function loadLib() {
 }
 
 /**
- * Get (or create) a cached Transformers.js pipeline.
- * Loads the library if not yet loaded.
- *
- * @param {string}   task    e.g. 'translation'
- * @param {string}   model   HuggingFace model ID
- * @param {object}  [opts]   passed to pipeline()
- * @returns {Promise<Function>}
+ * Get (or create) a cached pipeline.
+ * @param {string} task   e.g. 'translation', 'automatic-speech-recognition'
+ * @param {string} model  HuggingFace model ID
+ * @param {object} [opts] passed to pipeline()
  */
 export async function getPipeline(task, model, opts = {}) {
   const key = `${task}::${model}`;
   if (_cache.has(key)) return _cache.get(key);
 
   const { pipeline } = await loadLib();
-  // Start pipeline load — but don't await before caching the Promise
-  // so concurrent callers share the same in-flight load
   const pipePromise = pipeline(task, model, opts);
-  _cache.set(key, pipePromise);           // cache the Promise itself
+  _cache.set(key, pipePromise);
 
   try {
     const pipe = await pipePromise;
-    _cache.set(key, pipe);               // replace Promise with resolved pipeline
+    _cache.set(key, pipe);
     return pipe;
   } catch (err) {
-    _cache.delete(key);                  // allow retry on failure
+    _cache.delete(key);
     throw err;
   }
 }
 
-/** True if the library is already loaded in memory (no network needed) */
 export function isLibLoaded() { return _lib !== null; }

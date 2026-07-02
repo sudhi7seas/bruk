@@ -1,6 +1,6 @@
 /**
  * Brük — Speech Input
- * Primary path: Whisper (offline) via @huggingface/transformers.
+ * Primary path: Whisper (offline) via the @xenova/transformers IIFE bundle.
  * Fallback: Web Speech API (device-native, requires internet).
  */
 

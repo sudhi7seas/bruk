@@ -263,6 +263,14 @@
 
         <div class="settings-section">
           <h3>Voice Output</h3>
+          <div class="settings-row">
+            <span>Active voice (DE)</span>
+            <span class="model-badge" id="active-voice-de">Detecting…</span>
+          </div>
+          <div class="settings-row">
+            <span>Active voice (EN)</span>
+            <span class="model-badge" id="active-voice-en">Detecting…</span>
+          </div>
           <label class="settings-row">
             <span>Speech Rate</span>
             <input type="range" id="speech-rate" min="0.5" max="2" step="0.1" value="1" />
@@ -273,6 +281,10 @@
             <input type="range" id="speech-pitch" min="0.5" max="2" step="0.1" value="1" />
             <span id="speech-pitch-val">1.0</span>
           </label>
+          <p class="settings-note">
+            Brük automatically selects the highest-quality voice your device offers
+            (neural/enhanced voices are preferred over the default robotic ones).
+          </p>
         </div>
 
         <div class="settings-section">

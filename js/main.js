@@ -17,6 +17,7 @@ import {
   updateCharCount, addConvoBubble, clearConvoLog,
   updateModelStatus,
   showModelLoadingHint, hideModelLoadingHint,
+  showActiveVoices,
 } from './ui.js';
 import { translate, preloadTranslationModels, TranslationError } from './translation.js';
 import {
@@ -24,7 +25,7 @@ import {
   transcribe, isWebSpeechAvailable, transcribeWithWebSpeech,
   preloadWhisper, SpeechError,
 } from './speech-input.js';
-import { speak, stopSpeaking }        from './speech-output.js';
+import { speak, stopSpeaking, getPreferredVoices } from './speech-output.js';
 import { openCamera, closeCamera, captureAndOCR, CameraError } from './camera.js';
 import { detectDiet }                  from './diet.js';
 import { startTimer, clearTimer }      from './timer.js';
@@ -119,7 +120,10 @@ const save = (key, val) => localStorage.setItem(key, val);
 function bindAll() {
   // Theme / settings
   EL.themeToggle.addEventListener('click', toggleTheme);
-  EL.settingsBtn.addEventListener('click', openSettings);
+  EL.settingsBtn.addEventListener('click', () => {
+    openSettings();
+    getPreferredVoices().then(showActiveVoices).catch(() => {});
+  });
   EL.closeSettings.addEventListener('click', _closeSettings);
   EL.settingsOverlay.addEventListener('click', e => {
     if (e.target === EL.settingsOverlay) _closeSettings();

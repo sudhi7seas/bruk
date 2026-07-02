@@ -97,6 +97,8 @@ export const EL = {
   // Model loading hint (shown inline during first-use download)
   modelLoadingHint: $('model-loading-hint'),
   modelLoadingText: $('model-loading-text'),
+  activeVoiceDe: $('active-voice-de'),
+  activeVoiceEn: $('active-voice-en'),
 };
 
 // ── LOADING ────────────────────────────────────────────────────────
@@ -289,4 +291,16 @@ export function showModelLoadingHint(text) {
 
 export function hideModelLoadingHint() {
   EL.modelLoadingHint?.classList.add('hidden');
+}
+
+// ── ACTIVE VOICE DISPLAY ───────────────────────────────────────────
+export function showActiveVoices({ de, en }) {
+  if (EL.activeVoiceDe) {
+    EL.activeVoiceDe.textContent = de ? de.name : 'Default device voice';
+    EL.activeVoiceDe.className = `model-badge ${de ? 'loaded' : ''}`;
+  }
+  if (EL.activeVoiceEn) {
+    EL.activeVoiceEn.textContent = en ? en.name : 'Default device voice';
+    EL.activeVoiceEn.className = `model-badge ${en ? 'loaded' : ''}`;
+  }
 }
