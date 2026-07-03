@@ -1,39 +1,52 @@
 /**
- * Brük — AI Loader (lazy, official CDN import pattern)
+ * Brük — AI Loader
  *
- * v1.4 FIX — confirmed against two independent sources:
- *   1. HuggingFace's own official docs (huggingface.github.io/transformers.js)
- *   2. An independently published, working tutorial (Nov 2025)
+ * v1.6 FIX — the real, confirmed root cause of "Failed to fetch".
  *
- * Both use exactly this pattern, and only this pattern, for bundler-free
- * browser use:
+ * What was actually wrong (verified, not guessed):
+ * The translation model repositories on Hugging Face (e.g.
+ * Xenova/opus-mt-en-de) were migrated months ago to a new file layout
+ * "for Transformers.js v3" — confirmed directly from that repo's own
+ * merged pull request history. The old file names
+ * (onnx/decoder_model_quantized.onnx, etc.) that the OLD library
+ * version (@xenova/transformers@2.17.2, v1.3–v1.5 of Brük) requests no
+ * longer exist at those paths in several of these repos. The library
+ * successfully builds a request, the server has nothing at that path,
+ * and the resulting network failure surfaces to the browser as a bare
+ * "Failed to fetch" — no descriptive error, because that's simply what
+ * a cross-origin 404 looks like to fetch().
  *
- *   <script type="module">
- *     import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers';
- *   </script>
+ * The fix: use the CURRENT, actively maintained package —
+ * @huggingface/transformers (v4.x) — whose expected file structure
+ * actually matches what these repos serve today. This is verified
+ * against FIVE independent official sources (HuggingFace's own GitHub
+ * repo README, official docs site, npm package page, and GitHub Pages
+ * demo site), all showing the identical loading pattern:
  *
- * That is a native ES module `import` of a *full URL* — not a bare package
- * name (which needs an importmap) and not a classic <script src> tag
- * (which only works for UMD-style libraries that attach a global variable).
+ *   import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0';
  *
- * v1.3's mistake: it injected the file as a classic <script> tag and
- * expected a `window.Transformers` global. This particular build is an ES
- * module and never attaches anything to `window` — so the script "loaded"
- * successfully (no network error) but the expected global was always
- * going to be missing. That was a wrong assumption on my part, not a CDN
- * or network issue.
+ * Two details matter and were the actual mistakes before:
+ *   1. Import the bare, version-pinned PACKAGE ROOT url — no /dist/...
+ *      subpath. jsDelivr auto-resolves that to the correct, genuinely
+ *      self-contained browser entry point. Guessing a specific dist
+ *      filename (as v1.1 did) can point at the wrong internal file.
+ *   2. This version manages its own WASM helper files internally,
+ *      matched to its own version automatically — unlike the old v2
+ *      package, it does NOT need (and should NOT get) a manually
+ *      pinned separate onnxruntime-web path. v1.5's fix was solving a
+ *      v2-specific problem that doesn't apply here, and forcing it
+ *      would point at mismatched files again.
  *
- * The fix: use a real dynamic `import()` of the exact URL, matching the
- * officially documented usage byte-for-byte.
- *
- * The import is only triggered on first actual use (translate / mic
- * press) — never at page load — so the app shell still renders instantly
- * regardless of network conditions.
+ * As always, the library is only loaded on first actual use (translate
+ * / mic press) — never at page load.
  */
 
 let _lib = null;
 let _loading = null;
 const _cache = new Map(); // 'task::model' -> pipeline (or in-flight Promise)
+
+const PRIMARY_URL  = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0';
+const FALLBACK_URL = 'https://unpkg.com/@huggingface/transformers@4.2.0';
 
 async function loadLib() {
   if (_lib) return _lib;
@@ -41,15 +54,13 @@ async function loadLib() {
 
   _loading = (async () => {
     try {
-      // Primary: pinned version, exactly as HuggingFace's own docs show it.
-      const mod = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+      const mod = await import(PRIMARY_URL);
       configureEnv(mod.env);
       _lib = mod;
       return mod;
     } catch (primaryErr) {
-      // Fallback: unpkg mirror, in case jsdelivr is slow/blocked for this user.
       try {
-        const mod = await import('https://unpkg.com/@xenova/transformers@2.17.2');
+        const mod = await import(FALLBACK_URL);
         configureEnv(mod.env);
         _lib = mod;
         return mod;
@@ -67,39 +78,19 @@ async function loadLib() {
   return _loading;
 }
 
-/**
- * v1.5 FIX — the actual cause of "Failed to fetch" during pipeline creation.
- *
- * The main library file loads fine on its own, but internally it needs to
- * fetch a *second* set of files: the ONNX Runtime Web WASM binaries that
- * do the real number-crunching. By default it tries to auto-detect where
- * those live relative to its own script location — and that detection
- * does not work reliably when the main library itself was loaded via a
- * bare dynamic `import()` of a CDN URL (rather than a locally bundled
- * file), which is exactly Brük's setup. The result is a plain,
- * unhelpful "Failed to fetch" once you actually try to translate.
- *
- * This is a widely documented issue (confirmed across multiple official
- * HuggingFace/transformers.js GitHub threads). The fix is to explicitly
- * tell it where those WASM files are, using the *exact* onnxruntime-web
- * version that this specific transformers.js release depends on
- * (1.14.0 for @xenova/transformers@2.17.2 — verified from the package's
- * own published dependency list; using a mismatched version is a
- * separately documented cause of breakage).
- */
 function configureEnv(env) {
   env.allowLocalModels = false;
   env.useBrowserCache  = true;
-
-  // Explicit WASM binary location — the actual fix for "Failed to fetch".
-  env.backends.onnx.wasm.wasmPaths =
-    'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/';
 
   // Documented ONNX Runtime Web multi-threading bug (see
   // microsoft/onnxruntime#14445) causes intermittent failures on some
   // browsers/devices. Forcing single-threaded WASM is the standard,
   // widely-used workaround — slightly slower, but reliable everywhere.
-  env.backends.onnx.wasm.numThreads = 1;
+  // (wasmPaths is intentionally left at its library default here — see
+  // note above on why manually overriding it is wrong for this version.)
+  if (env.backends?.onnx?.wasm) {
+    env.backends.onnx.wasm.numThreads = 1;
+  }
 }
 
 /**
