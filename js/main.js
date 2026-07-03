@@ -44,6 +44,31 @@ const S = {
   convoActive:   false,
 };
 
+// ── CSP VIOLATION DIAGNOSTICS ─────────────────────────────────────
+// If the Content-Security-Policy ever blocks a request (e.g. a model
+// file redirected to a CDN host not on the allowlist), the browser
+// fires this event with the exact blocked URL. We capture the most
+// recent one so error messages can surface it directly — turning a
+// generic "Failed to fetch" into an actionable, specific diagnosis
+// instead of another guessing round.
+let _lastCspViolation = null;
+document.addEventListener('securitypolicyviolation', (e) => {
+  _lastCspViolation = {
+    blockedURI: e.blockedURI,
+    violatedDirective: e.violatedDirective,
+    time: Date.now(),
+  };
+  console.warn('[Brük] CSP blocked:', e.blockedURI, 'via', e.violatedDirective);
+});
+
+function getRecentCspViolation() {
+  // Only trust it if it happened in the last 10 seconds — otherwise it's stale
+  if (_lastCspViolation && Date.now() - _lastCspViolation.time < 10000) {
+    return _lastCspViolation;
+  }
+  return null;
+}
+
 // ── BOOT ──────────────────────────────────────────────────────────
 // Boot is intentionally synchronous — no network calls, no AI loading.
 // The progress bar fills quickly to show the app is alive.
@@ -439,11 +464,22 @@ async function doPreloadModels() {
 // ── ERROR DISPLAY ─────────────────────────────────────────────────
 function handleErr(err, title, retryFn) {
   console.error(`[Brük] ${title}:`, err);
+
+  let message = err?.message ?? String(err);
+
+  // If a CSP violation happened right before this error, it's almost
+  // certainly the actual cause — append the exact blocked URL so the
+  // next report is immediately actionable instead of another guess.
+  const csp = getRecentCspViolation();
+  if (csp) {
+    message += `\n\n⚠️ Security policy blocked: ${csp.blockedURI}\n(directive: ${csp.violatedDirective})`;
+  }
+
   if (err instanceof SpeechError || err instanceof CameraError) {
-    showToast(err.message, 'error', 6000);
+    showToast(message, 'error', 8000);
     return;
   }
-  showError(title, err?.message ?? String(err), retryFn);
+  showError(title, message, retryFn);
 }
 
 // ── START ─────────────────────────────────────────────────────────
