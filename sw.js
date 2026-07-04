@@ -1,5 +1,5 @@
 /**
- * Brük — Service Worker v1.1
+ * Brük — Service Worker v1.8.1
  *
  * Cache strategy:
  *   App shell   → cache-first  (APP_CACHE)
@@ -7,7 +7,7 @@
  *   CDN scripts → network-first with cache fallback (APP_CACHE)
  */
 
-const APP_CACHE   = 'bruk-app-v1.8.0';
+const APP_CACHE   = 'bruk-app-v1.8.1';
 const MODEL_CACHE = 'bruk-models-v1';
 
 const PRECACHE = [
@@ -35,9 +35,11 @@ const MODEL_HOSTS = [
   'huggingface.co',
   'cdn-lfs.huggingface.co',
   'cdn-lfs-us-1.huggingface.co',
+  'hf.co',
+  'xethub.hf.co',
 ];
 
-// CDN JS libraries (Transformers.js, Tesseract, es-module-shims)
+// CDN JS libraries (Transformers.js, Tesseract.js)
 const CDN_HOSTS = [
   'cdn.jsdelivr.net',
   'unpkg.com',

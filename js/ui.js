@@ -192,7 +192,6 @@ export function hideResult() {
 }
 
 // ── TOAST ─────────────────────────────────────────────────────────
-let toastTimer = null;
 export function showToast(message, type = '', duration = 3000) {
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;

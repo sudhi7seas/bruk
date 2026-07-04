@@ -1,5 +1,5 @@
 /**
- * Brük — App Orchestration v1.2
+ * Brük — App Orchestration v1.8.1
  *
  * Boot sequence is now fully synchronous (no CDN fetches at startup).
  * AI models load lazily only when the user first triggers translation/mic.
@@ -483,4 +483,4 @@ function handleErr(err, title, retryFn) {
 }
 
 // ── START ─────────────────────────────────────────────────────────
-boot();
+boot().catch(err => console.error('[Brük] Unhandled boot rejection:', err));

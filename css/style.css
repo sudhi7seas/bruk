@@ -1,10 +1,9 @@
 /* =============================================
    BRÜK — Design System
    Deep navy + electric blue, Space Grotesk + Inter
+   Fonts are loaded via <link> tags in index.html — not re-imported
+   here, to avoid a duplicate, render-blocking font request.
    ============================================= */
-
-/* ── FONTS ── */
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap');
 
 /* ── TOKENS ── */
 :root {

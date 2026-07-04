@@ -9,8 +9,6 @@ import { EL, showToast } from './ui.js';
 let _worker  = null;
 let _stream  = null;
 
-const TESSERACT_CDN = 'https://unpkg.com/tesseract.js@5/dist/tesseract.min.js';
-
 // ── TESSERACT SETUP ───────────────────────────────────────────────
 async function ensureTesseract() {
   if (_worker) return _worker;
@@ -18,7 +16,7 @@ async function ensureTesseract() {
   if (!window.Tesseract) {
     await new Promise((res, rej) => {
       const s = document.createElement('script');
-      s.src   = TESSERACT_CDN;
+      s.src   = CONFIG.TESSERACT_CDN;
       s.onload  = res;
       s.onerror = () => rej(new CameraError('Failed to load OCR library. Check your internet connection.'));
       document.head.appendChild(s);

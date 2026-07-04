@@ -1,6 +1,7 @@
 /**
  * Brük — Speech Input
- * Primary path: Whisper (offline) via the @xenova/transformers IIFE bundle.
+ * Primary path: Whisper (offline) via @huggingface/transformers v4.x,
+ * loaded as a native ES module import from a CDN (see loader.js).
  * Fallback: Web Speech API (device-native, requires internet).
  */
 
@@ -66,28 +67,34 @@ export function startRecording(maxSeconds = 15) {
   if (!navigator.mediaDevices?.getUserMedia)
     return Promise.reject(new SpeechError('Microphone access is not supported in this browser.'));
 
-  return new Promise(async (resolve, reject) => {
-    try {
-      _stream = await getMicStream();
-      _chunks = [];
-      _recorder = new MediaRecorder(_stream, { mimeType: bestMimeType() });
+  // The executor itself stays synchronous (avoids the async-executor
+  // anti-pattern, where a throw before the first `await` could bypass
+  // `reject`); the actual async work runs in an IIFE inside it, with
+  // its own try/catch still funnelling every error to `reject`.
+  return new Promise((resolve, reject) => {
+    (async () => {
+      try {
+        _stream = await getMicStream();
+        _chunks = [];
+        _recorder = new MediaRecorder(_stream, { mimeType: bestMimeType() });
 
-      _recorder.ondataavailable = e => { if (e.data.size > 0) _chunks.push(e.data); };
-      _recorder.onstop = () => {
-        _stopStream();
-        resolve(new Blob(_chunks, { type: _recorder.mimeType || 'audio/webm' }));
-      };
-      _recorder.onerror = e => {
-        _stopStream();
-        reject(new SpeechError('Recording error: ' + (e.error?.message ?? 'unknown')));
-      };
+        _recorder.ondataavailable = e => { if (e.data.size > 0) _chunks.push(e.data); };
+        _recorder.onstop = () => {
+          _stopStream();
+          resolve(new Blob(_chunks, { type: _recorder.mimeType || 'audio/webm' }));
+        };
+        _recorder.onerror = e => {
+          _stopStream();
+          reject(new SpeechError('Recording error: ' + (e.error?.message ?? 'unknown')));
+        };
 
-      _recorder.start(250);
-      setTimeout(() => { if (_recorder?.state === 'recording') _recorder.stop(); }, maxSeconds * 1000);
-    } catch (err) {
-      _stopStream();
-      reject(err instanceof SpeechError ? err : new SpeechError(err.message, err));
-    }
+        _recorder.start(250);
+        setTimeout(() => { if (_recorder?.state === 'recording') _recorder.stop(); }, maxSeconds * 1000);
+      } catch (err) {
+        _stopStream();
+        reject(err instanceof SpeechError ? err : new SpeechError(err.message, err));
+      }
+    })();
   });
 }
 

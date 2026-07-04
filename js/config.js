@@ -4,10 +4,12 @@
 
 export const CONFIG = {
   APP_NAME:    'Brük',
-  APP_VERSION: '1.1.0',
+  APP_VERSION: '1.8.1',
 
   // ── MODEL IDs ────────────────────────────────────────────────────
-  // Using @huggingface/transformers v3.x (Xenova-era IDs still valid)
+  // Loaded via @huggingface/transformers v4.x (see loader.js). Model
+  // IDs themselves are unchanged from the original Xenova namespace —
+  // only the JS library version that fetches them changed.
   MODELS: {
     TRANSLATION_DE_EN: {
       id:    'Xenova/opus-mt-de-en',

@@ -1,7 +1,8 @@
 /**
  * Brük — Translation Module
- * Helsinki-NLP Opus-MT via the @xenova/transformers IIFE bundle
- * (loaded as a classic <script> tag — see loader.js for why).
+ * Helsinki-NLP Opus-MT via @huggingface/transformers v4.x, loaded as a
+ * native ES module import from a CDN (see loader.js for the exact
+ * mechanism and why it's built this way).
  * Models are ~75 MB each; cached in browser after first download.
  */
 
