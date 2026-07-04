@@ -139,7 +139,7 @@ bruk/
 | Diet / veg detection | ❌ | ❌ | ✅ |
 | No data sent to servers | ❌ | ❌ | ✅ |
 | Free forever | ❌ | ❌ | ✅ |
-| No app store needed | ❌ | ❌ | ✅ |
+| No app store needed | ❌ | ❌ | ✅ | 
 
 ---
 
