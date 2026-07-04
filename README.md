@@ -8,7 +8,7 @@
 
 ## What it does
 
-Brük is a privacy-first Progressive Web App that translates between German and English entirely on your device. No servers. No API keys. No data ever leaves your phone.
+Brük is a privacy-first Progressive Web App that translates between German and English entirely on your device. No servers. No API keys. No data ever leaves your phone
 
 | Input method | How it works |
 |---|---|
