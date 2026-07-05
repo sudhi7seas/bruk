@@ -95,16 +95,51 @@ function configureEnv(env) {
 
 /**
  * Get (or create) a cached pipeline.
- * @param {string} task   e.g. 'translation', 'automatic-speech-recognition'
- * @param {string} model  HuggingFace model ID
- * @param {object} [opts] passed to pipeline()
+ *
+ * v1.9 FIX — the actual runtime error you hit ("Can't create a
+ * session... Missing required scale... MatMulNBits") happens when the
+ * ONNX file the library picks by default uses 4-bit ("N-bit") block
+ * quantization, which has a known ONNX Runtime Web compatibility bug
+ * around missing scale tensors for certain models. `translation.js`
+ * and `speech-input.js` now request an explicit, non-4-bit `dtype`
+ * (see config.js) that structurally cannot hit that bug. As a safety
+ * net, if the requested dtype ever still fails at session-creation
+ * time for some other reason, this function automatically retries
+ * once with `fallbackDtype` before giving up — so a bad dtype choice
+ * degrades gracefully instead of hard-failing.
+ *
+ * @param {string} task           e.g. 'translation', 'automatic-speech-recognition'
+ * @param {string} model          HuggingFace model ID
+ * @param {object} [opts]         passed to pipeline(); opts.dtype is respected
+ * @param {string} [fallbackDtype] retried automatically if opts.dtype fails
+ *                                 to create a session (e.g. 'fp32')
  */
-export async function getPipeline(task, model, opts = {}) {
-  const key = `${task}::${model}`;
+export async function getPipeline(task, model, opts = {}, fallbackDtype = null) {
+  const key = `${task}::${model}::${opts.dtype ?? 'default'}`;
   if (_cache.has(key)) return _cache.get(key);
 
   const { pipeline } = await loadLib();
-  const pipePromise = pipeline(task, model, opts);
+
+  const attempt = (dtype) => pipeline(task, model, dtype ? { ...opts, dtype } : opts);
+
+  const pipePromise = (async () => {
+    try {
+      return await attempt(opts.dtype);
+    } catch (err) {
+      const looksLikeSessionFailure =
+        /can'?t create a session|session creation|matmulnbits|missing required scale/i.test(err?.message ?? '');
+
+      if (looksLikeSessionFailure && fallbackDtype && opts.dtype !== fallbackDtype) {
+        console.warn(
+          `[Brük] dtype '${opts.dtype}' failed to create a session for ${model} — ` +
+          `retrying automatically with '${fallbackDtype}'.`, err.message
+        );
+        return attempt(fallbackDtype);
+      }
+      throw err;
+    }
+  })();
+
   _cache.set(key, pipePromise);
 
   try {

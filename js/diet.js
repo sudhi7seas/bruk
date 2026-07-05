@@ -53,10 +53,43 @@ export async function detectDiet(text) {
   return { status: 'vegan', triggers: [] };
 }
 
+/**
+ * v1.9.1 FIX — found and confirmed by actual execution testing, not just
+ * reading the code: this heuristic previously treated a bare comma "," or
+ * parenthesis "(" as a sufficient signal on its own that a piece of text
+ * "looks like an ingredient list". Ordinary sentences contain commas
+ * constantly (any compound sentence, greeting, or list of any kind), so
+ * this caused false positives — e.g. "Hallo, wie geht es dir?" (a plain
+ * greeting) was incorrectly tagged with a green "Vegan" badge, purely
+ * because it contains a comma.
+ *
+ * Fix: require either (a) an explicit, unambiguous ingredient-list
+ * keyword ("Zutaten", "ingredients", etc. — these essentially never
+ * appear in ordinary conversation), or (b) list-like punctuation
+ * (comma/parenthesis) AND at least THREE distinct specific food terms
+ * present. Requiring three, not one, makes it extremely unlikely for an
+ * ordinary sentence to misfire (e.g. "I like sugar and salt in my
+ * coffee, but not too much" only hits two food terms and correctly does
+ * NOT trigger), while still catching genuine bare ingredient lists that
+ * lack an explicit "Zutaten:"/"Ingredients:" header.
+ */
 function looksLikeIngredients(text) {
-  // Heuristic: ingredient lists usually have commas, parentheses, or known ingredient words
-  const indicators = [',', '(', 'Zutaten', 'Inhaltsstoffe', 'ingredients', 'contains', 'enthält', 'Zucker', 'Salz', 'Wasser', 'sugar', 'salt', 'water', 'Mehl', 'flour'];
-  return indicators.some(i => text.toLowerCase().includes(i.toLowerCase()));
+  const lower = text.toLowerCase();
+
+  // Strong, unambiguous signal — these phrases essentially never appear
+  // outside of actual ingredient/nutrition labels.
+  const strongKeywords = ['zutaten', 'inhaltsstoffe', 'ingredients', 'contains', 'enthält'];
+  if (strongKeywords.some(k => lower.includes(k))) return true;
+
+  // Weaker signal: only counts if BOTH list-like punctuation AND multiple
+  // distinct specific food terms are present — neither alone is enough.
+  const hasListPunctuation = lower.includes(',') || lower.includes('(');
+  if (!hasListPunctuation) return false;
+
+  const foodWords = ['zucker', 'salz', 'wasser', 'sugar', 'salt', 'water', 'mehl', 'flour'];
+  const foodWordCount = foodWords.filter(w => lower.includes(w)).length;
+
+  return foodWordCount >= 3;
 }
 
 function findKeywords(lowerText, list) {

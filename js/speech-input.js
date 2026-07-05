@@ -21,13 +21,15 @@ async function loadWhisper(onProgress) {
       CONFIG.MODELS.WHISPER.task,
       CONFIG.MODELS.WHISPER.id,
       {
+        dtype: CONFIG.MODELS.WHISPER.dtype,
         progress_callback: (info) => {
           if (info.status === 'progress' && onProgress)
             onProgress(Math.round(info.progress ?? 0));
         },
         chunk_length_s: 30,
         stride_length_s: 5,
-      }
+      },
+      CONFIG.FALLBACK_DTYPE
     );
     updateModelStatus('whisper', 'loaded');
     return pipe;

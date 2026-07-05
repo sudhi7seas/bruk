@@ -1,5 +1,5 @@
 /**
- * Brük — App Orchestration v1.8.1
+ * Brük — App Orchestration v1.9.1
  *
  * Boot sequence is now fully synchronous (no CDN fetches at startup).
  * AI models load lazily only when the user first triggers translation/mic.

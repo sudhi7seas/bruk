@@ -18,13 +18,19 @@ async function loadPipeline(direction, onProgress) {
 
   updateModelStatus(direction, 'loading');
   try {
-    const pipe = await getPipeline(cfg.task, cfg.id, {
-      progress_callback: (info) => {
-        if (info.status === 'progress' && onProgress) {
-          onProgress(info.file, Math.round(info.progress ?? 0));
-        }
+    const pipe = await getPipeline(
+      cfg.task,
+      cfg.id,
+      {
+        dtype: cfg.dtype,
+        progress_callback: (info) => {
+          if (info.status === 'progress' && onProgress) {
+            onProgress(info.file, Math.round(info.progress ?? 0));
+          }
+        },
       },
-    });
+      CONFIG.FALLBACK_DTYPE
+    );
     updateModelStatus(direction, 'loaded');
     return pipe;
   } catch (err) {
