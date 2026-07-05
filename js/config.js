@@ -4,50 +4,41 @@
 
 export const CONFIG = {
   APP_NAME:    'Brük',
-  APP_VERSION: '1.9.1',
+  APP_VERSION: '1.10.0',
 
   // ── MODEL IDs ────────────────────────────────────────────────────
-  // Loaded via @huggingface/transformers v4.x (see loader.js). Model
-  // IDs themselves are unchanged from the original Xenova namespace —
-  // only the JS library version that fetches them changed.
+  // Loaded via @xenova/transformers@2.17.2 (see loader.js). Model IDs
+  // are unchanged from the original Xenova namespace.
   //
-  // `dtype: 'q8'` is explicit and deliberate, not a default we fell
-  // into: some repos' default dtype selection resolves to a 4-bit
-  // ("N-bit" block-quantized) ONNX variant, which has a known ONNX
-  // Runtime Web compatibility bug (missing scale tensors for
-  // MatMulNBits/QDQ nodes — "Can't create a session" at pipeline
-  // creation time). `q8` uses a structurally different, non-N-bit
-  // int8 quantization scheme that cannot hit that specific bug, while
-  // staying close to the original ~75 MB download size. `loader.js`
-  // additionally retries with `fp32` automatically if `q8` itself
-  // ever fails to load for a given model, as a safety net.
+  // No explicit `dtype` is set here (see loader.js and
+  // docs/REQUIREMENTS.md SWR-1.1 for the evidence behind this
+  // decision) — the library's own default selection is used for every
+  // model. `FALLBACK_DTYPE` below is only a defensive safety net,
+  // applied automatically by loader.js if the default ever fails to
+  // create a session for some other reason — it is not the primary
+  // strategy.
   MODELS: {
     TRANSLATION_DE_EN: {
       id:    'Xenova/opus-mt-de-en',
       task:  'translation',
       label: 'Translation (DE→EN)',
       dir:   'de-en',
-      dtype: 'q8',
     },
     TRANSLATION_EN_DE: {
       id:    'Xenova/opus-mt-en-de',
       task:  'translation',
       label: 'Translation (EN→DE)',
       dir:   'en-de',
-      dtype: 'q8',
     },
     WHISPER: {
       id:    'Xenova/whisper-base',
       task:  'automatic-speech-recognition',
       label: 'Speech Recognition',
-      dtype: 'q8',
     },
   },
 
-  // Fallback dtype used automatically if a model's preferred dtype
-  // above fails to create a session (see loader.js). Full precision
-  // has the best chance of existing for any properly converted model,
-  // since it never uses N-bit block quantization.
+  // Defensive fallback only — see comment above. Not expected to be
+  // needed under normal operation with the current design.
   FALLBACK_DTYPE: 'fp32',
 
   // ── LIMITS ──────────────────────────────────────────────────────

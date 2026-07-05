@@ -1,8 +1,8 @@
 /**
  * Brük — Translation Module
- * Helsinki-NLP Opus-MT via @huggingface/transformers v4.x, loaded as a
+ * Helsinki-NLP Opus-MT via @xenova/transformers@2.17.2, loaded as a
  * native ES module import from a CDN (see loader.js for the exact
- * mechanism and why it's built this way).
+ * mechanism and the evidence behind this package choice).
  * Models are ~75 MB each; cached in browser after first download.
  */
 
@@ -18,11 +18,13 @@ async function loadPipeline(direction, onProgress) {
 
   updateModelStatus(direction, 'loading');
   try {
+    // No `dtype` is passed here — cfg has none (see config.js and
+    // docs/REQUIREMENTS.md SWR-1.1). CONFIG.FALLBACK_DTYPE is still
+    // passed through as a defensive safety net only.
     const pipe = await getPipeline(
       cfg.task,
       cfg.id,
       {
-        dtype: cfg.dtype,
         progress_callback: (info) => {
           if (info.status === 'progress' && onProgress) {
             onProgress(info.file, Math.round(info.progress ?? 0));

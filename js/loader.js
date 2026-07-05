@@ -1,52 +1,51 @@
 /**
  * Brük — AI Loader
  *
- * v1.6 FIX — the real, confirmed root cause of "Failed to fetch".
+ * v1.10 FIX — reverted library package based on verified evidence
+ * (see docs/REQUIREMENTS.md SWR-1.1 revised, docs/TRACEABILITY.md D-1).
  *
- * What was actually wrong (verified, not guessed):
- * The translation model repositories on Hugging Face (e.g.
- * Xenova/opus-mt-en-de) were migrated months ago to a new file layout
- * "for Transformers.js v3" — confirmed directly from that repo's own
- * merged pull request history. The old file names
- * (onnx/decoder_model_quantized.onnx, etc.) that the OLD library
- * version (@xenova/transformers@2.17.2, v1.3–v1.5 of Brük) requests no
- * longer exist at those paths in several of these repos. The library
- * successfully builds a request, the server has nothing at that path,
- * and the resulting network failure surfaces to the browser as a bare
- * "Failed to fetch" — no descriptive error, because that's simply what
- * a cross-origin 404 looks like to fetch().
+ * Summary of what changed and why:
+ * v1.6 switched from `@xenova/transformers` to `@huggingface/transformers`
+ * v4.x, based on an inference (not a confirmed failure) that Hugging
+ * Face's file-structure migration for v3 would break the old package.
+ * v1.9 then added an explicit `dtype: 'q8'` to work around a session-
+ * creation error — but that error recurred identically afterward.
  *
- * The fix: use the CURRENT, actively maintained package —
- * @huggingface/transformers (v4.x) — whose expected file structure
- * actually matches what these repos serve today. This is verified
- * against FIVE independent official sources (HuggingFace's own GitHub
- * repo README, official docs site, npm package page, and GitHub Pages
- * demo site), all showing the identical loading pattern:
+ * Investigating further surfaced two pieces of first-party evidence
+ * that point the other way:
+ *   1. A documented GitHub issue on the official transformers.js repo
+ *      (huggingface/transformers.js#1127, "BROKEN examples/demo-site")
+ *      reporting that migrating example code from `@xenova/transformers`
+ *      to `@huggingface/transformers` v3.x caused several previously-
+ *      working models to break or become unreliable.
+ *   2. A community discussion thread on `Xenova/opus-mt-en-es` (the
+ *      same model family/architecture as Brük's translation models,
+ *      converted by the same process) showing a plain
+ *      `pipeline('translation', 'Xenova/opus-mt-en-es')` call — no
+ *      dtype specified — working correctly with `@xenova/transformers`.
  *
- *   import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0';
+ * `@xenova/transformers@2.17.2` was already confirmed (Brük v1.4) to
+ * load correctly as a bundler-free ES module import in this exact
+ * deployment environment. This revision reverts to that package, and
+ * deliberately does NOT force any `dtype` — letting the library's own,
+ * presumably better-tested default selection run for these specific
+ * models, rather than continuing to guess which explicit dtype is safe.
  *
- * Two details matter and were the actual mistakes before:
- *   1. Import the bare, version-pinned PACKAGE ROOT url — no /dist/...
- *      subpath. jsDelivr auto-resolves that to the correct, genuinely
- *      self-contained browser entry point. Guessing a specific dist
- *      filename (as v1.1 did) can point at the wrong internal file.
- *   2. This version manages its own WASM helper files internally,
- *      matched to its own version automatically — unlike the old v2
- *      package, it does NOT need (and should NOT get) a manually
- *      pinned separate onnxruntime-web path. v1.5's fix was solving a
- *      v2-specific problem that doesn't apply here, and forcing it
- *      would point at mismatched files again.
+ * Honest limit: this is backed by strong circumstantial and first-party
+ * evidence, not by an actual browser test run against the real models
+ * by either the assistant or the user. See docs/TRACEABILITY.md
+ * Level 5 for the explicit statement of what remains to be confirmed.
  *
- * As always, the library is only loaded on first actual use (translate
- * / mic press) — never at page load.
+ * The library is only loaded on first actual use (translate / mic
+ * press) — never at page load.
  */
 
 let _lib = null;
 let _loading = null;
-const _cache = new Map(); // 'task::model' -> pipeline (or in-flight Promise)
+const _cache = new Map(); // 'task::model::dtype' -> pipeline (or in-flight Promise)
 
-const PRIMARY_URL  = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0';
-const FALLBACK_URL = 'https://unpkg.com/@huggingface/transformers@4.2.0';
+const PRIMARY_URL  = 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+const FALLBACK_URL = 'https://unpkg.com/@xenova/transformers@2.17.2';
 
 async function loadLib() {
   if (_lib) return _lib;
@@ -84,10 +83,10 @@ function configureEnv(env) {
 
   // Documented ONNX Runtime Web multi-threading bug (see
   // microsoft/onnxruntime#14445) causes intermittent failures on some
-  // browsers/devices. Forcing single-threaded WASM is the standard,
+  // browsers/devices. Forcing single-threaded WASM is a standard,
   // widely-used workaround — slightly slower, but reliable everywhere.
-  // (wasmPaths is intentionally left at its library default here — see
-  // note above on why manually overriding it is wrong for this version.)
+  // This is independent of the package/dtype decision above and is
+  // retained from the previous revision.
   if (env.backends?.onnx?.wasm) {
     env.backends.onnx.wasm.numThreads = 1;
   }
@@ -96,22 +95,23 @@ function configureEnv(env) {
 /**
  * Get (or create) a cached pipeline.
  *
- * v1.9 FIX — the actual runtime error you hit ("Can't create a
- * session... Missing required scale... MatMulNBits") happens when the
- * ONNX file the library picks by default uses 4-bit ("N-bit") block
- * quantization, which has a known ONNX Runtime Web compatibility bug
- * around missing scale tensors for certain models. `translation.js`
- * and `speech-input.js` now request an explicit, non-4-bit `dtype`
- * (see config.js) that structurally cannot hit that bug. As a safety
- * net, if the requested dtype ever still fails at session-creation
- * time for some other reason, this function automatically retries
- * once with `fallbackDtype` before giving up — so a bad dtype choice
- * degrades gracefully instead of hard-failing.
+ * No `dtype` is forced by default (see file header) — `opts.dtype` is
+ * only applied if a caller explicitly provides one. `fallbackDtype`
+ * remains as a defensive safety net: if the (default or explicit)
+ * attempt fails with what looks like a session-creation error, this
+ * retries once with `fallbackDtype` before giving up.
  *
- * @param {string} task           e.g. 'translation', 'automatic-speech-recognition'
- * @param {string} model          HuggingFace model ID
- * @param {object} [opts]         passed to pipeline(); opts.dtype is respected
- * @param {string} [fallbackDtype] retried automatically if opts.dtype fails
+ * Diagnostic fix (this revision): if the fallback retry *also* fails,
+ * the error thrown now includes BOTH the original and the retry's
+ * error message, clearly labeled — the previous version let the retry's
+ * error silently overwrite the original, making it impossible to tell
+ * from the outside whether the retry had even run. This was a real gap
+ * identified during review, independent of the package/dtype change.
+ *
+ * @param {string} task            e.g. 'translation', 'automatic-speech-recognition'
+ * @param {string} model           HuggingFace model ID
+ * @param {object} [opts]          passed to pipeline(); opts.dtype is only used if explicitly set
+ * @param {string} [fallbackDtype] retried automatically if the first attempt fails
  *                                 to create a session (e.g. 'fp32')
  */
 export async function getPipeline(task, model, opts = {}, fallbackDtype = null) {
@@ -125,18 +125,29 @@ export async function getPipeline(task, model, opts = {}, fallbackDtype = null) 
   const pipePromise = (async () => {
     try {
       return await attempt(opts.dtype);
-    } catch (err) {
+    } catch (firstErr) {
       const looksLikeSessionFailure =
-        /can'?t create a session|session creation|matmulnbits|missing required scale/i.test(err?.message ?? '');
+        /can'?t create a session|session creation|matmulnbits|missing required scale/i.test(firstErr?.message ?? '');
 
       if (looksLikeSessionFailure && fallbackDtype && opts.dtype !== fallbackDtype) {
         console.warn(
-          `[Brük] dtype '${opts.dtype}' failed to create a session for ${model} — ` +
-          `retrying automatically with '${fallbackDtype}'.`, err.message
+          `[Brük] Default load failed to create a session for ${model} — ` +
+          `retrying automatically with dtype='${fallbackDtype}'.`, firstErr.message
         );
-        return attempt(fallbackDtype);
+        try {
+          return await attempt(fallbackDtype);
+        } catch (retryErr) {
+          // Preserve BOTH errors — do not let the retry's error silently
+          // replace the original, so a real failure here is fully
+          // diagnosable rather than ambiguous.
+          throw new Error(
+            `Both the default load and the '${fallbackDtype}' fallback failed for ${model}.\n\n` +
+            `First attempt error: ${firstErr.message}\n\n` +
+            `Fallback attempt error: ${retryErr.message}`
+          );
+        }
       }
-      throw err;
+      throw firstErr;
     }
   })();
 

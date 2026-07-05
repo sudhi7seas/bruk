@@ -1,5 +1,5 @@
 /**
- * Brük — Service Worker v1.9.1
+ * Brük — Service Worker v1.10.0
  *
  * Cache strategy:
  *   App shell   → cache-first  (APP_CACHE)
@@ -7,7 +7,7 @@
  *   CDN scripts → network-first with cache fallback (APP_CACHE)
  */
 
-const APP_CACHE   = 'bruk-app-v1.9.1';
+const APP_CACHE   = 'bruk-app-v1.10.0';
 const MODEL_CACHE = 'bruk-models-v1';
 
 const PRECACHE = [

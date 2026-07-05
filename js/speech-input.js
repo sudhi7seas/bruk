@@ -1,7 +1,8 @@
 /**
  * Brük — Speech Input
- * Primary path: Whisper (offline) via @huggingface/transformers v4.x,
- * loaded as a native ES module import from a CDN (see loader.js).
+ * Primary path: Whisper (offline) via @xenova/transformers@2.17.2,
+ * loaded as a native ES module import from a CDN (see loader.js for
+ * the evidence behind this package choice).
  * Fallback: Web Speech API (device-native, requires internet).
  */
 
@@ -17,11 +18,13 @@ let _chunks   = [];
 async function loadWhisper(onProgress) {
   updateModelStatus('whisper', 'loading');
   try {
+    // No `dtype` is passed here — CONFIG.MODELS.WHISPER has none (see
+    // config.js and docs/REQUIREMENTS.md SWR-2.1). FALLBACK_DTYPE is
+    // still passed through as a defensive safety net only.
     const pipe = await getPipeline(
       CONFIG.MODELS.WHISPER.task,
       CONFIG.MODELS.WHISPER.id,
       {
-        dtype: CONFIG.MODELS.WHISPER.dtype,
         progress_callback: (info) => {
           if (info.status === 'progress' && onProgress)
             onProgress(Math.round(info.progress ?? 0));
