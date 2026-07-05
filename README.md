@@ -145,7 +145,7 @@ bruk/
 
 ## Contributing
 
-Issues and pull requests are welcome. Please open an issue before starting large changes.
+Issues and pull requests are welcome. Please open an issue before starting large changes
 
 ---
 
