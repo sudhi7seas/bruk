@@ -244,7 +244,10 @@ function bindAll() {
     dismissError();
     fn?.();
   });
-  EL.errorModal.addEventListener('keydown', e => { if (e.key === 'Escape') dismissError(); });
+  // Keydown on the (non-focusable) modal div never fires — listen globally.
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !EL.errorModal.classList.contains('hidden')) dismissError();
+  });
 
   // Conversation
   EL.convoDeMic.addEventListener('click', () => doConvoMic('de'));

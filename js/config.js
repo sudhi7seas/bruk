@@ -56,7 +56,7 @@ export const CONFIG = {
 
   // ── LANGUAGE DETECTION ───────────────────────────────────────────
   DE_CHARS: /[äöüßÄÖÜ]/,
-  DE_WORDS: /\b(der|die|das|und|ist|nicht|ich|sie|er|wir|haben|sein|mit|auf|für|von|den|dem|des|ein|eine|einen|einem|einer|auch|bei|nach|zu|aus|als|vor|durch|bis)\b/i,
+  DE_WORDS: /\b(der|die|das|und|ist|nicht|ich|sie|er|wir|haben|sein|mit|auf|für|von|den|dem|des|ein|eine|einen|einem|einer|auch|bei|nach|zu|aus|als|vor|durch|bis)\b/gi,
 
   // ── STORAGE KEYS ────────────────────────────────────────────────
   STORAGE_KEYS: {

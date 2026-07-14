@@ -119,10 +119,11 @@ export function hideLoadingScreen() {
 // ── THEME ──────────────────────────────────────────────────────────
 export function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
-  const meta = document.querySelector('meta[name="theme-color"][media="(prefers-color-scheme: dark)"]');
-  if (meta && theme === 'light') {
-    meta.setAttribute('content', '#F0F4FF');
-  }
+  // Keep the browser chrome colour in sync with the app theme (both
+  // media-specific metas, so it works regardless of OS scheme).
+  const colour = theme === 'light' ? '#F0F4FF' : '#0F172A';
+  document.querySelectorAll('meta[name="theme-color"]')
+    .forEach(m => m.setAttribute('content', colour));
   localStorage.setItem(CONFIG.STORAGE_KEYS.THEME, theme);
 }
 

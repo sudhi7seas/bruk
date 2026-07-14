@@ -123,8 +123,25 @@ export async function transcribe(audioBlob, language = null, onModelProgress) {
     const decoded = await ctx.decodeAudioData(buf);
     ctx.close();
 
-    const float32 = decoded.getChannelData(0);
-    const opts = { return_timestamps: false };
+    let float32 = decoded.getChannelData(0);
+
+    // Safari (webkitAudioContext) ignores the sampleRate constructor
+    // option, so `decoded` may be 44.1/48 kHz. Whisper requires 16 kHz —
+    // resample via OfflineAudioContext when needed.
+    if (decoded.sampleRate !== 16000 && window.OfflineAudioContext) {
+      const targetLength = Math.ceil(decoded.duration * 16000);
+      const off = new OfflineAudioContext(1, targetLength, 16000);
+      const src = off.createBufferSource();
+      src.buffer = decoded;
+      src.connect(off.destination);
+      src.start(0);
+      const resampled = await off.startRendering();
+      float32 = resampled.getChannelData(0);
+    }
+
+    // task:'transcribe' is explicit — whisper-base is multilingual and
+    // can otherwise be steered into translating instead of transcribing.
+    const opts = { return_timestamps: false, task: 'transcribe' };
     if (language) opts.language = language;
 
     const result = await pipe(float32, opts);

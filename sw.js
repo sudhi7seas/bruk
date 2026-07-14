@@ -7,7 +7,7 @@
  *   CDN scripts → network-first with cache fallback (APP_CACHE)
  */
 
-const APP_CACHE   = 'bruk-app-v1.10.0';
+const APP_CACHE   = 'bruk-app-v1.10.1';
 const MODEL_CACHE = 'bruk-models-v1';
 
 const PRECACHE = [
@@ -37,6 +37,7 @@ const MODEL_HOSTS = [
   'cdn-lfs-us-1.huggingface.co',
   'hf.co',
   'xethub.hf.co',
+  'tessdata.projectnaptha.com',
 ];
 
 // CDN JS libraries (Transformers.js, Tesseract.js)
